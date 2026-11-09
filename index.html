@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NVS English Quest | New Vision Schools</title>
+<meta name="description" content="Explore NVS English Quest, an independent English-learning platform by New Vision Schools offering interactive reading, vocabulary, grammar, listening, and writing practice.">
+<meta name="robots" content="index, follow">
+<meta name="application-name" content="NVS English Quest">
+<meta name="author" content="New Vision Schools">
+<meta name="theme-color" content="#213D68">
+<!-- Icons: a crop of the emblem (tree and open book) from the official New Vision Schools logo. -->
+<link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/brand/favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/brand/favicon-180.png">
+<link rel="manifest" href="site.webmanifest">
+<!-- Social sharing. Most sharing services need a FULL address for og:image and og:url.
+     When the school-approved address is known, replace SITE_URL below (see DEPLOYMENT_GUIDE.md, "Publication settings")
+     and add: <link rel="canonical" href="SITE_URL/"> -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="NVS English Quest">
+<meta property="og:title" content="NVS English Quest | New Vision Schools">
+<meta property="og:description" content="An independent English-learning platform by New Vision Schools offering interactive reading, vocabulary, grammar, listening, and writing practice.">
+<meta property="og:image" content="assets/brand/nvs-logo.jpg">
+<meta property="og:image:alt" content="New Vision Schools logo">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" href="#home" aria-label="NVS English Quest, New Vision Schools: home">
+      <span class="brand-logo"><img src="assets/brand/nvs-logo.jpg" alt="New Vision Schools logo" width="447" height="447" decoding="async"></span>
+      <span>
+        <span class="brand-name">NVS English Quest</span>
+        <span class="brand-sub">New Vision Schools · Riyadh</span>
+      </span>
+    </a>
+    <p class="tagline">Learn. Practice. Improve. Achieve.</p>
+    <button class="ar-btn" id="arBtn" type="button" aria-pressed="false" aria-label="Arabic help" title="Show or hide short Arabic instructions"><span lang="ar" dir="rtl">عربي</span><span class="ar-long" aria-hidden="true"> Arabic help: <span class="ar-state">Off</span></span></button>
+    <button class="menu-btn" id="menuBtn" aria-expanded="false" aria-controls="mainNav"><span id="menuIcon"></span>Menu</button>
+  </div>
+  <nav class="main-nav" id="mainNav" aria-label="Main navigation"><ul id="navList"></ul></nav>
+</header>
+
+<main id="main" tabindex="-1"></main>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <span class="brand-logo sm"><img src="assets/brand/nvs-logo.jpg" alt="" width="447" height="447" loading="lazy" decoding="async"></span>
+      <div>
+        <p class="f-name">NVS English Quest</p>
+        <p>An Independent English-Learning Initiative by New Vision Schools</p>
+        <p class="f-slogan">Learn. Practice. Improve. Achieve.</p>
+      </div>
+    </div>
+    <nav class="footer-nav" aria-label="Footer">
+      <ul>
+        <li><a href="#about">About</a></li>
+        <li><a href="#privacy">Privacy Notice</a></li>
+        <li><a href="#accessibility">Accessibility</a></li>
+        <li><a href="#help">Help</a></li>
+      </ul>
+    </nav>
+  </div>
+  <div class="footer-base">
+    <p>© 2026 New Vision Schools. All rights reserved.</p>
+    <p class="footer-progress">Your progress is saved only in this browser. <button class="linkbtn" id="footerReset" type="button">Reset My Progress</button></p>
+    <p class="ar-help" lang="ar" dir="rtl">يُحفظ تقدّمك في هذا المتصفح فقط، ولا ينتقل إلى أجهزة أخرى.</p>
+  </div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="sr-only" id="srLive" aria-live="polite"></div>
+
+<dialog id="resetDialog" aria-labelledby="resetTitle">
+  <h2 id="resetTitle">Delete all your progress?</h2>
+  <p>This will permanently delete all your saved answers, scores, badges, writing drafts, challenge results, and your Starting-Point Check result <strong>in this browser</strong>. You cannot undo this.</p>
+  <p class="ar-help" lang="ar" dir="rtl">سيؤدي هذا إلى حذف جميع إجاباتك ودرجاتك وشاراتك ومسوداتك ونتيجة اختبار نقطة البداية المحفوظة في هذا المتصفح نهائيًا، ولا يمكن التراجع عن ذلك.</p>
+  <div class="btn-row">
+    <button class="btn danger" id="confirmReset" type="button">Yes, delete my progress</button>
+    <button class="btn ghost" id="cancelReset" type="button">Cancel</button>
+  </div>
+</dialog>
+
+<noscript><p style="padding:1rem;background:#fff3cd">NVS English Quest needs JavaScript. Please turn on JavaScript in your browser.</p></noscript>
+<div id="loadError" hidden style="max-width:900px;margin:1rem auto;padding:1rem;border:2px solid #E6AD45;border-radius:12px;background:#fbf0d9">
+  <strong>Some website files did not load.</strong> Refresh the page and check your internet connection. If you opened the website from a copy on a computer, make sure the whole <code>website</code> folder was unzipped (with its <code>css</code>, <code>js</code>, <code>data</code>, and <code>assets</code> folders).
+</div>
+<!-- ===================== LEARNING CONTENT (data/) =====================
+     Teachers add reading passages by editing ONE level file only.
+     See HOW_TO_ADD_CONTENT.md. The registry must load first. -->
+<script src="data/content-registry.js"></script>
+<script src="data/reading-level-1.js"></script>
+<script src="data/reading-level-2.js"></script>
+<script src="data/reading-level-3.js"></script>
+<script src="data/reading-level-4.js"></script>
+<script src="data/reading-level-5.js"></script>
+<script src="data/vocabulary.js"></script>
+<script src="data/grammar.js"></script>
+<script src="data/listening.js"></script>
+<script src="data/writing.js"></script>
+<script src="data/starting-check.js"></script>
+<!-- ===================== APPLICATION LOGIC (js/) ===================== -->
+<script src="analytics-config.js"></script>
+<script src="js/analytics.js"></script>
+<script src="js/progress.js"></script>
+<script src="js/reading.js"></script>
+<script>
+  /* Show a friendly message if any file is missing (for example, if only index.html was copied). */
+  (function () {
+    var C = window.NVS_CONTENT;
+    var missing = !C || !C.reading || !C.reading.passages.length || !C.listening || !C.writing || !window.NVSProgress || !window.NVSReading;
+    var emptyLevels = [];
+    if (C && C.reading) [1, 2, 3, 4, 5].forEach(function (n) { if (!C.reading.passages.some(function (p) { return p.level === n; })) emptyLevels.push(n); });
+    var box = document.getElementById("loadError");
+    var badPractice = C ? ["vocabulary", "grammar"].filter(function (f) { return !C[f === "vocabulary" ? "vocab" : f]; }) : [];
+    if (missing) box.hidden = false;
+    else if (badPractice.length) { box.innerHTML = "<strong>The file <code>data/" + badPractice[0] + ".js</code> could not be loaded.</strong> It may have a typing mistake (for example, a missing comma or quotation mark). Check the file or restore your backup copy. Other areas still work."; box.hidden = false; }
+    else if (emptyLevels.length) { box.innerHTML = "<strong>Reading level " + emptyLevels.join(", ") + " could not be loaded.</strong> The file <code>data/reading-level-" + emptyLevels[0] + ".js</code> may have a typing mistake (for example, a missing comma or quotation mark). Check the file or restore your backup copy."; box.hidden = false; }
+  })();
+</script>
+<script src="js/app.js"></script>
+</body>
+</html>
