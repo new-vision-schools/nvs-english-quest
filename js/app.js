@@ -92,7 +92,7 @@ const bySetOrder = (a, b) => (a.order || 0) - (b.order || 0);
 C.checkSets(C.vocab || [], "vocabulary").sort(bySetOrder).forEach(s => addActivity(s, "vocab", { desc: s.desc, order: s.order, plevel: s.level, topic: s.topic, learn: s.learn, extra: !!s.extra, route: `#vocab/${s.id}` }));
 C.checkSets(C.grammar || [], "grammar").sort(bySetOrder).forEach(s => addActivity(s, "grammar", { desc: s.desc, order: s.order, plevel: s.level, topic: s.topic, learn: s.learn, extra: !!s.extra, route: `#grammar/${s.id}` }));
 const setLabel = a => a.extra ? "Extra practice" : `Set ${a.order}`;
-C.listening.activities.forEach(l => addActivity(l, "listening", { level: l.level, topic: l.topic, format: l.format, script: l.script, speakers: l.speakers, voices: l.voices || {},
+C.listening.activities.forEach(l => addActivity(l, "listening", { level: l.level, topic: l.topic, format: l.format, intro: l.intro, vocab: l.vocab || [], script: l.script, speakers: l.speakers, voices: l.voices || {},
   words: wc(l.script.map(x => x.t).join(" ")), route: `#listening/${l.id}` }));
 function shuffledOrder(n, seed) {   /* deterministic shuffle that never equals the correct order */
   const idx = [...Array(n).keys()]; let h = seed;
@@ -103,13 +103,14 @@ function shuffledOrder(n, seed) {   /* deterministic shuffle that never equals t
   return idx;
 }
 C.writing.activities.forEach(w => addActivity(w, "writing", { level: w.level, wtype: w.type, desc: w.desc, route: `#writing/${w.id}`, guided: w.type === "guided",
-  prompt: w.prompt, minSentences: w.minSentences, wordBank: w.wordBank, starters: w.starters, model: w.model, checklist: w.checklist }, a => {
+  prompt: w.prompt, minSentences: w.minSentences, wordBank: w.wordBank, starters: w.starters, model: w.model, checklist: w.checklist,
+  learn: w.learn || null, plan: w.plan || [], criteria: w.criteria || [], revise: w.revise || [] }, a => {
   if (a.type === "guided") return [];
   return a.items.map((it, i) => {
     if (a.type === "choose") return makeQ("writing", a.id, i, it, "mcq", { options: mcqOptions(a.id, i, it.opts) });
-    if (a.type === "order") return makeQ("writing", a.id, i, it, "order", { q: "Build the sentence. Tap the words in the correct order.", tiles: it.tiles, accept: it.accept });
-    if (a.type === "correct") return makeQ("writing", a.id, i, it, "correct", { q: "Find the mistake and rewrite the sentence correctly.", wrong: it.wrong, accept: it.accept, checks: it.checks || [] });
-    return makeQ("writing", a.id, i, it, "para", { q: "Put the sentences in the best order to make a paragraph.", sentences: it.sentences, roles: it.roles, accept: it.accept, start: shuffledOrder(it.sentences.length, hash(a.id)) });
+    if (a.type === "order") return makeQ("writing", a.id, i, it, "order", { q: it.task || "Build the sentence. Tap the words in the correct order.", tiles: it.tiles, accept: it.accept });
+    if (a.type === "correct") return makeQ("writing", a.id, i, it, "correct", { q: it.task || "Find the mistake and rewrite the sentence correctly.", wrong: it.wrong, accept: it.accept, checks: it.checks || [] });
+    return makeQ("writing", a.id, i, it, "para", { q: "Put the sentences in the best order to make a paragraph.", sentences: it.sentences, roles: it.roles, accept: it.accept, start: shuffledOrder(it.sentences.length, hash(i ? a.id + "-" + i : a.id)) });
   });
 }));
 const SKILLS = {};
@@ -339,15 +340,32 @@ function playerHTML(act) {
       <div class="bar gold" aria-hidden="true"><span id="playerProg" style="width:0%"></span></div>
     </div>`
     : `<div class="notice sample" role="note">${icon("info")}<p><strong>Audio is not available in this browser.</strong> Your browser does not support speech playback. Please use the <strong>Show Transcript</strong> button to read the script instead, or try a different browser (for example, Chrome, Edge, or Safari).</p></div>`}
-    <div class="btn-row" style="margin-top:.8rem"><button class="btn ghost" type="button" id="trBtn" aria-expanded="false" aria-controls="transcript">${icon("doc")} Show Transcript</button></div>
+    <div class="btn-row" style="margin-top:.8rem"><button class="btn ghost" type="button" id="trBtn" aria-expanded="false" aria-controls="transcript" aria-describedby="trNote">${icon("doc")} Show Transcript</button></div>
+    <p class="small muted" id="trNote"></p>
     <div class="transcript" id="transcript" hidden><p class="eyebrow">Transcript</p>${transcript}</div>`;
+}
+/* The transcript opens only after the first listening attempt: when the student has answered every question once
+   (the activity is complete). It is always available if this browser cannot play audio, or if playback fails. */
+function transcriptOpen(act) { return !canSpeak || Player.state === "error" || !!S.done[act.id]; }
+function updateTranscriptLock() {
+  const r = Player.root, act = Player.act; if (!r || !act || !r.isConnected) return;
+  const b = r.querySelector("#trBtn"), note = r.querySelector("#trNote"); if (!b) return;
+  const open = transcriptOpen(act);
+  b.disabled = !open;
+  if (note) note.textContent = open ? (S.done[act.id] ? "Use the transcript to check what you heard." : "Audio is not available, so you can read the transcript.") : "The transcript opens after you answer all the questions. Listen first.";
+  if (!open) { const box = r.querySelector("#transcript"); if (box) box.hidden = true; }
+}
+function listenPreviewHTML(act) {
+  const words = (act.vocab || []).map(([w, m]) => `<li><strong>${esc(w)}</strong>: ${esc(m)}</li>`).join("");
+  return `${act.intro ? `<p class="listen-intro">${esc(act.intro)}</p>` : ""}${words ? `<div class="listen-words"><p class="eyebrow">Useful words</p><ul>${words}</ul></div>` : ""}`;
 }
 function bindPlayer(act, root) {
   stopSpeech(); Player.act = act; Player.i = 0; Player.root = root;
   Player.chunks = [];
   act.script.forEach(l => (l.t.match(/[^.!?]+[.!?]+["”’]?|[^.!?]+$/g) || [l.t]).forEach(s => Player.chunks.push({ sp: l.sp, t: s.trim() })));
   const tr = root.querySelector("#trBtn");
-  if (tr) tr.addEventListener("click", () => { const box = root.querySelector("#transcript"); const open = box.hidden; box.hidden = !open; tr.setAttribute("aria-expanded", String(open)); tr.innerHTML = `${icon("doc")} ${open ? "Hide Transcript" : "Show Transcript"}`; });
+  if (tr) tr.addEventListener("click", () => { if (!transcriptOpen(act)) return; const box = root.querySelector("#transcript"); const open = box.hidden; box.hidden = !open; tr.setAttribute("aria-expanded", String(open)); tr.innerHTML = `${icon("doc")} ${open ? "Hide Transcript" : "Show Transcript"}`; });
+  updateTranscriptLock();
   if (!canSpeak) return;
   root.querySelectorAll("[data-pa]").forEach(b => b.addEventListener("click", () => playerAction(b.dataset.pa)));
   root.querySelectorAll('input[name="speed"]').forEach(r => r.addEventListener("change", () => { Player.rate = Number(r.value); if (Player.state === "playing") { Player.token++; speechSynthesis.cancel(); speakChunk(); } updatePlayerUI(); }));
@@ -390,6 +408,7 @@ function updatePlayerUI() {
     error: "The audio could not play on this device. Try again, or use Show Transcript to read the script." }[st];
   const sEl = r.querySelector("#playerStatus"); if (sEl && sEl.textContent !== msg) sEl.textContent = msg;
   const p = r.querySelector("#playerProg"); if (p) p.style.width = (st === "done" ? 100 : pct(Player.i, Player.chunks.length)) + "%";
+  updateTranscriptLock();
 }
 
 /* ---------- Navigation ---------- */
@@ -460,8 +479,9 @@ function viewHome() {
   };
   main().innerHTML = `
     <section class="hero">
-      <span class="tag">${icon("route")} New Vision Schools · Grades 7–12</span>
+      <span class="tag">${icon("route")} New Vision Schools · Riyadh</span>
       <h1 style="margin-top:.7rem">Welcome to NVS English Quest</h1>
+      <p class="hero-sub">Independent English Learning for National Track Students | <span class="nowrap">Grades 7–12</span></p>
       <p>Practice English at your own level and your own pace, one step at a time.</p>
       <div class="btn-row" style="margin-top:1rem">
         <a class="btn gold" href="${rec ? ACTIVITIES[rec.id].route : "#challenge"}">${icon("arrow")} ${rec ? rec.cta + " learning" : "Try a challenge"}</a>
@@ -471,7 +491,7 @@ function viewHome() {
     ${real && S.sc ? "" : `<section class="section card start-card" aria-labelledby="newH">
       <div><p class="eyebrow">${icon("target")} New here?</p><h2 id="newH" style="margin:.2rem 0">Start in two steps</h2>
         <p style="margin:0">1. Read <strong>Start Here</strong> to see how the website works. 2. Take the <strong>Starting-Point Check</strong> to find a good reading level.${S.sc ? ` Your Suggested Starting Level is <strong>Level ${S.sc.suggested}</strong>.` : ""}</p>
-        ${ar("ابدأ بخطوتين سهلتين: اقرأ «Start Here» لتعرف كيف يعمل الموقع، ثم أجرِ «اختبار نقطة البداية» لتجد مستوى القراءة المناسب لك.")}</div>
+        </div>
       <div class="btn-row"><a class="btn primary" href="#start">${icon("info")} Start Here</a><a class="btn ghost" href="#check">${icon("target")} Starting-Point Check</a></div></section>`}
     <section class="section" aria-labelledby="dashH">
       <div class="section-head"><h2 id="dashH">My dashboard</h2></div>
@@ -504,101 +524,61 @@ function viewHome() {
     </section>`;
 }
 
-/* ===================== VERSION 3D: ARABIC HELP, HOW-IT-WORKS GUIDES, START HERE, STARTING-POINT CHECK ===================== */
-/* Arabic help is optional and covers instructions only. Reading passages and questions stay in English. */
-const PREF_KEY = "nvs-english-quest-prefs";   /* separate from progress, so progress data is never touched */
-const Prefs = (() => { try { return JSON.parse(localStorage.getItem(PREF_KEY) || "{}") || {}; } catch (e) { return {}; } })();
-function savePrefs() { try { localStorage.setItem(PREF_KEY, JSON.stringify(Prefs)); } catch (e) {} }
-function applyArabic() {
-  document.body.classList.toggle("ar-on", !!Prefs.ar);
-  const b = $("#arBtn"); if (!b) return;
-  b.setAttribute("aria-pressed", String(!!Prefs.ar));
-  b.querySelector(".ar-state").textContent = Prefs.ar ? "On" : "Off";
-}
-/* English words inside Arabic help (button names such as «Check») are isolated so they always display in the right order. */
-const ar = t => `<p class="ar-help" lang="ar" dir="rtl">${t.replace(/[A-Za-z][A-Za-z0-9’'.×\- ]*[A-Za-z0-9.×]|[A-Za-z]/g, m => `<bdi>${m}</bdi>`)}</p>`;
+/* ===================== HOW-IT-WORKS GUIDES, START HERE, STARTING-POINT CHECK ===================== */
+/* The optional Arabic help feature was removed in the Final Updated Launch: the interface is English only.
+   Its separate preference key (never part of progress) is cleared once so no unused data is left behind. */
+try { localStorage.removeItem("nvs-english-quest-prefs"); } catch (e) {}
 
 /* Five questions every independent learner needs answered, for each area. */
 const HOW = {
   reading: [
-    ["What will I learn?", "You will practice understanding English texts: finding details, the main idea, word meanings, and what the writer suggests.",
-      "ستتدرّب على فهم النصوص الإنجليزية: إيجاد التفاصيل، والفكرة الرئيسة، ومعاني الكلمات، وما يقصده الكاتب."],
-    ["What do I do first?", "Choose a passage at your level. Not sure? Take the Starting-Point Check. Then open “Before You Read” to learn the key words.",
-      "اختر نصًا يناسب مستواك. إذا لم تكن متأكدًا، فأجرِ «اختبار نقطة البداية». ثم افتح «Before You Read» لتتعلّم الكلمات المهمة."],
-    ["What if I do not understand?", "Tap an underlined word to see its meaning. Press Listen to hear the passage. Press Hint for a clue. You can always look back at the passage.",
-      "اضغط على الكلمة التي تحتها خط لترى معناها، واضغط «Listen» لسماع النص، واضغط «Hint» للحصول على تلميح. يمكنك دائمًا الرجوع إلى النص."],
-    ["How do I know if I am right?", "Press Check. You see at once if your answer is correct, with an explanation and the sentence from the text that proves it. If it is not correct, you get a clue and can try again.",
-      "اضغط «Check». سترى فورًا إن كانت إجابتك صحيحة، مع شرح والجملة من النص التي تثبت ذلك. وإذا كانت خاطئة، ستحصل على تلميح ويمكنك المحاولة مرة أخرى."],
-    ["What do I do after I finish?", "Read your results and the “Next step” advice. Practice again, or open the next passage that is recommended for you.",
-      "اقرأ نتيجتك ونصيحة «الخطوة التالية». تدرّب مرة أخرى، أو افتح النص التالي المقترح لك."]
+    ["What will I learn?", "You will practice understanding English texts: finding details, the main idea, word meanings, and what the writer suggests."],
+    ["What do I do first?", "Choose a passage at your level. Not sure? Take the Starting-Point Check. Then open “Before You Read” to learn the key words."],
+    ["What if I do not understand?", "Tap an underlined word to see its meaning. Press Listen to hear the passage. Press Hint for a clue. You can always look back at the passage."],
+    ["How do I know if I am right?", "Press Check. You see at once if your answer is correct, with an explanation and the sentence from the text that proves it. If it is not correct, you get a clue and can try again."],
+    ["What do I do after I finish?", "Read your results and the “Next step” advice. Practice again, or open the next passage that is recommended for you."]
   ],
   vocab: [
-    ["What will I learn?", "You will learn useful English words by topic, from everyday words to academic words.",
-      "ستتعلّم كلمات إنجليزية مفيدة مرتّبة حسب الموضوع، من كلمات الحياة اليومية إلى الكلمات الأكاديمية."],
-    ["What do I do first?", "Choose a set by level or topic. Read “Learn the Words” first. Then press Start Practice.",
-      "اختر مجموعة حسب المستوى أو الموضوع. اقرأ «Learn the Words» أولًا، ثم اضغط «Start Practice»."],
-    ["What if I do not understand?", "Press Hint for a clue. Read the example sentence in the question carefully. After the set, you can review all the words again.",
-      "اضغط «Hint» للحصول على تلميح، واقرأ جملة المثال في السؤال بعناية. بعد انتهاء المجموعة يمكنك مراجعة جميع الكلمات مرة أخرى."],
-    ["How do I know if I am right?", "Press Check. The feedback tells you if you are right and explains the word. If you are not right, read the clue and try again.",
-      "اضغط «Check». ستخبرك الملاحظات إن كانت إجابتك صحيحة وتشرح معنى الكلمة. وإذا لم تكن صحيحة، اقرأ التلميح وحاول مرة أخرى."],
-    ["What do I do after I finish?", "Review the words, then try the next set that is recommended.",
-      "راجع الكلمات، ثم جرّب المجموعة التالية المقترحة."]
+    ["What will I learn?", "You will learn useful English words by topic, from everyday words to academic words."],
+    ["What do I do first?", "Choose a set by level or topic. Read “Learn the Words” first. Then press Start Practice."],
+    ["What if I do not understand?", "Press Hint for a clue. Read the example sentence in the question carefully. After the set, you can review all the words again."],
+    ["How do I know if I am right?", "Press Check. The feedback tells you if you are right and explains the word. If you are not right, read the clue and try again."],
+    ["What do I do after I finish?", "Review the words, then try the next set that is recommended."]
   ],
   grammar: [
-    ["What will I learn?", "Each set teaches one grammar point, from simple sentences to more advanced structures.",
-      "تعلّمك كل مجموعة قاعدة نحوية واحدة، من الجمل البسيطة إلى التراكيب الأكثر تقدّمًا."],
-    ["What do I do first?", "Choose a grammar skill. Read “Learn the Rule”: the rule, two examples, and one common mistake. Then press Start Practice.",
-      "اختر مهارة نحوية. اقرأ «Learn the Rule»: القاعدة ومثالين وخطأً شائعًا واحدًا، ثم اضغط «Start Practice»."],
-    ["What if I do not understand?", "Press Hint. Think about the rule you just read. When an answer is wrong, the feedback explains the exact mistake.",
-      "اضغط «Hint» وفكّر في القاعدة التي قرأتها. عندما تكون الإجابة خاطئة، تشرح لك الملاحظات الخطأ بالضبط."],
-    ["How do I know if I am right?", "Press Check. The feedback tells you if you are right and explains the rule. If you are not right, try again.",
-      "اضغط «Check». ستخبرك الملاحظات إن كانت إجابتك صحيحة وتشرح القاعدة. وإذا لم تكن صحيحة، حاول مرة أخرى."],
-    ["What do I do after I finish?", "If you made mistakes, review the rule. Then try the next set.",
-      "إذا أخطأت، فراجع القاعدة، ثم جرّب المجموعة التالية."]
+    ["What will I learn?", "Each set teaches one grammar point, from simple sentences to more advanced structures."],
+    ["What do I do first?", "Choose a grammar skill. Read “Learn the Rule”: the rule, two examples, and one common mistake. Then press Start Practice."],
+    ["What if I do not understand?", "Press Hint. Think about the rule you just read. When an answer is wrong, the feedback explains the exact mistake."],
+    ["How do I know if I am right?", "Press Check. The feedback tells you if you are right and explains the rule. If you are not right, try again."],
+    ["What do I do after I finish?", "If you made mistakes, review the rule. Then try the next set."]
   ],
   listening: [
-    ["What will I learn?", "You will practice understanding spoken English: conversations, announcements, and short talks.",
-      "ستتدرّب على فهم اللغة الإنجليزية المنطوقة: محادثات وإعلانات وأحاديث قصيرة."],
-    ["What do I do first?", "Choose an activity at your level. Read the questions first, so you know what to listen for. Then press Play.",
-      "اختر نشاطًا يناسب مستواك. اقرأ الأسئلة أولًا لتعرف ما الذي تستمع إليه، ثم اضغط «Play»."],
-    ["What if I do not understand?", "Press Replay as many times as you need, or choose the slower speed (0.75×). Use the hint. You can also read the transcript.",
-      "اضغط «Replay» كلما احتجت، أو اختر السرعة الأبطأ (0.75×). استخدم التلميح، ويمكنك أيضًا قراءة النص المكتوب."],
-    ["How do I know if I am right?", "Press Check. The feedback explains the answer and shows the line from the recording.",
-      "اضغط «Check». ستشرح الملاحظات الإجابة وتعرض الجملة من التسجيل."],
-    ["What do I do after I finish?", "Read your results. Then try another activity at the same level or the next level.",
-      "اقرأ نتيجتك، ثم جرّب نشاطًا آخر في المستوى نفسه أو في المستوى التالي."]
+    ["What will I learn?", "You will practice understanding spoken English: conversations, announcements, and short talks."],
+    ["What do I do first?", "Choose an activity at your level. Read the questions first, so you know what to listen for. Then press Play."],
+    ["What if I do not understand?", "Press Replay as many times as you need, or choose the slower speed (0.75×). Use the hint. After you answer all the questions, you can read the transcript."],
+    ["How do I know if I am right?", "Press Check. The feedback explains the answer and shows the line you heard."],
+    ["What do I do after I finish?", "Read your results. Then try another activity at the same level or the next level."]
   ],
   writing: [
-    ["What will I learn?", "You will build correct sentences and organized paragraphs, and then write on your own.",
-      "ستتعلّم بناء جمل صحيحة وفقرات منظّمة، ثم تكتب بنفسك."],
-    ["What do I do first?", "Start with the sentence activities at your level. Do the Guided Writing task last. In Guided Writing, read the task and study the model answer for ideas.",
-      "ابدأ بأنشطة الجمل في مستواك، واترك «Guided Writing» إلى النهاية. في الكتابة الموجّهة، اقرأ المهمة وادرس نموذج الإجابة لتأخذ منه أفكارًا."],
-    ["What if I do not understand?", "Use the hints, the sentence starters, and the word bank.",
-      "استخدم التلميحات وبدايات الجمل وبنك الكلمات."],
-    ["How do I know if I am right?", "Sentence activities are checked at once. Guided Writing is not graded by the website: use the checklist and the model answer, and show your writing to your teacher.",
-      "تُصحَّح أنشطة الجمل فورًا. أما «Guided Writing» فلا يصحّحها الموقع: استخدم قائمة التحقّق ونموذج الإجابة، واعرض كتابتك على معلّمك."],
-    ["What do I do after I finish?", "Improve one sentence to make it clearer. Then try the next activity.",
-      "حسِّن جملة واحدة لتصبح أوضح، ثم جرّب النشاط التالي."]
+    ["What will I learn?", "You will build correct sentences and organized paragraphs, and then write on your own."],
+    ["What do I do first?", "Start with the sentence activities at your level. Do the Guided Writing task last. In Guided Writing, read the task and study the model answer for ideas."],
+    ["What if I do not understand?", "Use the hints, the sentence starters, and the word bank."],
+    ["How do I know if I am right?", "Sentence activities are checked at once. Guided Writing is not graded by the website: use the checklist and the model answer, and show your writing to your teacher."],
+    ["What do I do after I finish?", "Improve one sentence to make it clearer. Then try the next activity."]
   ],
   challenge: [
-    ["What will I learn?", "You will review reading, vocabulary, grammar, and listening with mixed questions.",
-      "ستراجع القراءة والمفردات والقواعد والاستماع من خلال أسئلة متنوّعة."],
-    ["What do I do first?", "Choose a challenge and read its rules. Quick Quest is a good first choice. Skill Sprint can be timed or untimed.",
-      "اختر تحديًا واقرأ قواعده. «Quick Quest» خيار جيد للبداية. ويمكن أداء «Skill Sprint» بوقت أو بدون وقت."],
-    ["What if I do not understand?", "Quick Quest, Reading Detective, and the Weekly Quest give hints and feedback after each question. Reading questions always show the passage.",
-      "تقدّم «Quick Quest» و«Reading Detective» و«Weekly Quest» تلميحات وملاحظات بعد كل سؤال، وتعرض أسئلة القراءة النص دائمًا."],
-    ["How do I know if I am right?", "You see feedback after each question (in Skill Sprint, at the end). The results show your score by skill.",
-      "سترى الملاحظات بعد كل سؤال (وفي «Skill Sprint» في النهاية). وتعرض النتائج درجتك في كل مهارة."],
-    ["What do I do after I finish?", "Look at the skill with the lowest score and practice it in Reading, Vocabulary, or Grammar. Challenges are for review; they do not change your mastery.",
-      "انظر إلى المهارة صاحبة أقل درجة وتدرّب عليها في القراءة أو المفردات أو القواعد. التحديات للمراجعة فقط ولا تغيّر مستوى إتقانك."]
+    ["What will I learn?", "You will review reading, vocabulary, grammar, and listening with mixed questions."],
+    ["What do I do first?", "Choose a challenge and read its rules. Quick Quest is a good first choice. Skill Sprint can be timed or untimed."],
+    ["What if I do not understand?", "Quick Quest, Reading Detective, and the Weekly Quest give hints and feedback after each question. Reading questions always show the passage."],
+    ["How do I know if I am right?", "You see feedback after each question (in Skill Sprint, at the end). The results show your score by skill."],
+    ["What do I do after I finish?", "Look at the skill with the lowest score and practice it in Reading, Vocabulary, or Grammar. Challenges are for review; they do not change your mastery."]
   ]
 };
 function howItWorks(area) {
   const rows = HOW[area]; if (!rows) return "";
   const fresh = area === "challenge" ? !S.ch.runs.length : !doneIn(area).length && !actsIn(area).some(id => actState(id).inProgress);
   return `<details class="card how-box section"${fresh ? " open" : ""}><summary>${icon("info")} How this works <span class="small muted">(${fresh ? "read this first" : "tap to open"})</span></summary>
-    ${ar("كيف يعمل هذا القسم؟")}
-    <dl class="how-list">${rows.map(([q, a, arTxt], i) => `<div><dt><span class="how-n" aria-hidden="true">${i + 1}</span>${esc(q)}</dt><dd>${esc(a)}${ar(arTxt)}</dd></div>`).join("")}</dl>
+    <dl class="how-list">${rows.map(([q, a], i) => `<div><dt><span class="how-n" aria-hidden="true">${i + 1}</span>${esc(q)}</dt><dd>${esc(a)}</dd></div>`).join("")}</dl>
   </details>`;
 }
 
@@ -611,14 +591,13 @@ function viewAbout() {
     <div class="page-head about-head">
       ${logoFigure(176, true)}
       <div><p class="eyebrow">${icon("info")} About</p><h1>About NVS English Quest</h1>
-        <p class="lead">New Vision Schools · <span lang="ar" dir="rtl">مدارس الرؤية الجديدة</span> · Riyadh, Saudi Arabia</p></div>
+        <p class="lead">New Vision Schools · Riyadh, Saudi Arabia</p></div>
     </div>
     <div class="card section prose">
-      <p>NVS English Quest is an independent English-learning initiative by New Vision Schools, Riyadh.</p>
-      <p>Designed for National Track students in Grades 7–12, the platform provides opportunities to strengthen reading, vocabulary, grammar, listening, and writing skills through interactive, self-paced practice.</p>
+      <p>NVS English Quest is a school-approved independent English-learning initiative by New Vision Schools, Riyadh, designed specifically for National Track students in Grades 7–12.</p>
+      <p>The platform provides opportunities to strengthen reading, vocabulary, grammar, listening, and writing skills through interactive, self-paced practice.</p>
       <p>Students can explore activities at their own proficiency levels, receive immediate feedback, and monitor their learning progress.</p>
       <p>The platform encourages independent learning, confidence, and continuous language development.</p>
-      ${ar("NVS English Quest مبادرة مستقلة لتعلّم اللغة الإنجليزية من مدارس الرؤية الجديدة في الرياض، مصمّمة لطلاب المسار الوطني من الصف السابع إلى الثاني عشر، للتدرّب على القراءة والمفردات والقواعد والاستماع والكتابة بالسرعة التي تناسبك.")}
     </div>
     <section class="section" aria-labelledby="howH">
       <h2 id="howH">How It Works</h2>
@@ -630,7 +609,6 @@ function viewAbout() {
         <li class="card"><h3><span class="how-n" aria-hidden="true">5</span>Follow your progress</h3><p>See what you have finished and what to practice next in <a href="#journey">My English Journey</a>.</p></li>
       </ol>
       <div class="notice" role="note">${icon("info")}<p><strong>Participation is voluntary.</strong> Students choose what to practice and when. Nobody is required to complete every activity.</p></div>
-      ${ar("المشاركة اختيارية. يختار الطالب ما يتدرّب عليه ومتى، ولا يُطلب من أحد إكمال جميع الأنشطة.")}
     </section>
     <section class="section grid g2" aria-label="Platform details">
       <div class="card"><h2>What is included</h2>
@@ -638,11 +616,10 @@ function viewAbout() {
           <li>${PASSAGES.length} reading passages in five levels</li>
           <li>${actsIn("vocab").length} vocabulary sets and ${actsIn("grammar").length} grammar sets</li>
           <li>${actsIn("listening").length} listening activities and ${actsIn("writing").length} writing activities</li>
-          <li>Four types of review challenge</li>
-          <li>Optional Arabic help with instructions</li></ul></div>
+          <li>Four types of review challenge</li></ul></div>
       <div class="card"><h2>School identity</h2>
         <dl class="facts">
-          <div><dt>School</dt><dd>New Vision Schools (<span lang="ar" dir="rtl">مدارس الرؤية الجديدة</span>)</dd></div>
+          <div><dt>School</dt><dd>New Vision Schools</dd></div>
           <div><dt>Location</dt><dd>Riyadh, Saudi Arabia</dd></div>
           <div><dt>Students</dt><dd>National Track, Grades 7–12</dd></div>
           <div><dt>Status</dt><dd>A school-approved educational initiative, free to use</dd></div></dl>
@@ -657,10 +634,10 @@ function viewPrivacy() {
   main().innerHTML = `
     <div class="page-head"><p class="eyebrow">${icon("info")} Privacy</p><h1>Privacy Notice</h1>
       <p>NVS English Quest is free and voluntary. You do not need an account, and the website never asks for your name or student ID.</p>
-      ${ar("NVS English Quest مجاني واستخدامه اختياري. لا تحتاج إلى حساب، ولا يطلب الموقع اسمك أو رقمك الطلابي أبدًا.")}</div>
+      </div>
     <div class="card section"><h2>Anonymous statistics on this website are <span class="tag ${on ? "green" : "navy"}">${on ? "ON" : "OFF"}</span></h2>
       <p>${on ? "The school has switched on anonymous statistics. They show the English Department how the platform is used overall. They are not used to check on any student." : "The website is not sending any statistics. Nothing about how you use the website leaves this device."}</p>
-      ${ar(on ? "فعّلت المدرسة الإحصاءات المجهولة. تُظهر لقسم اللغة الإنجليزية كيف تُستخدم المنصة بشكل عام، ولا تُستخدم لمراقبة أي طالب." : "الموقع لا يرسل أي إحصاءات حاليًا، ولا يخرج أي شيء عن استخدامك للموقع من هذا الجهاز.")}</div>
+      </div>
     <div class="grid g2 section">
       <div class="card"><h2>Your progress</h2>
         <ul class="feature-list">
@@ -668,7 +645,7 @@ function viewPrivacy() {
           <li>Your saved progress is never sent to the school or to any server.</li>
           <li>It does not move to another device or browser automatically.</li>
           <li>Clearing your browser data, or pressing <strong>Reset My Progress</strong>, deletes it. It cannot be brought back.</li></ul>
-        ${ar("يُحفظ تقدّمك في هذا المتصفح على هذا الجهاز فقط، ولا يُرسل إلى المدرسة أو إلى أي خادم، ولا ينتقل تلقائيًا إلى جهاز آخر. حذف بيانات المتصفح يحذف تقدّمك نهائيًا.")}</div>
+        </div>
       <div class="card"><h2>Anonymous statistics (only when switched on)</h2>
         <ul class="feature-list">
           <li>Which learning area was opened, for example Reading Academy.</li>
@@ -685,7 +662,7 @@ function viewPrivacy() {
         <li>Your saved progress, score history, or badges.</li>
         <li>Cookies or any code that identifies you or your device.</li></ul>
       <p><strong>Administrators see only totals for the whole school.</strong> They do not receive any student's learning history, and they cannot see what one student did.</p>
-      ${ar("لا تُجمع أسماء ولا أرقام طلابية ولا إجابات ولا كتابات. يرى المسؤولون أرقامًا إجمالية للمدرسة فقط، ولا يستطيعون معرفة ما فعله طالب معيّن.")}</div>
+      </div>
     <div class="card section"><h2>Good to know</h2>
       <ul class="feature-list">
         <li>Like every website, the services that deliver the website and receive statistics (GitHub, Cloudflare, and Supabase) see technical details such as your internet address when your browser connects. NVS English Quest does not store internet addresses in its statistics. Because of this, the school does not describe the statistics as perfectly anonymous.</li>
@@ -715,17 +692,16 @@ function viewAccessibility() {
           <li><strong>Color contrast:</strong> the main text and button colors were checked against the WCAG AA contrast level.</li>
           <li><strong>Not color alone:</strong> correct and incorrect answers are shown with words and icons as well as color.</li>
           <li><strong>Phones and tablets:</strong> layouts adapt to small screens, and buttons are large enough to tap.</li>
-          <li><strong>Listening support:</strong> pause, replay, slower speed, and a full transcript. Reading passages can be read aloud.</li>
+          <li><strong>Listening support:</strong> pause, replay, slower speed, a preview of useful words, and a full transcript after you answer. Reading passages can be read aloud.</li>
           <li><strong>No time pressure:</strong> activities are untimed. The only timer (Skill Sprint) is optional.</li>
           <li><strong>Structure:</strong> pages use headings, landmarks, labelled controls, and text alternatives for images, to help screen readers.</li>
-          <li><strong>Reduced motion:</strong> animations are switched off if your device asks for reduced motion.</li>
-          <li><strong>Arabic help:</strong> short Arabic instructions can be shown with the <em>Arabic help</em> button.</li></ul></div>
+          <li><strong>Reduced motion:</strong> animations are switched off if your device asks for reduced motion.</li></ul></div>
       <div class="card"><h2>Known limitations</h2>
         <ul class="feature-list">
           <li>The website has <strong>not been formally audited</strong> for full WCAG 2.2 conformance, so we do not claim full compliance.</li>
           <li>Testing used automated checks and keyboard testing in Google Chrome. It has <strong>not yet been tested with screen readers</strong> (such as NVDA or VoiceOver) on students' own devices.</li>
           <li>Read-aloud and listening activities use the voices built into your device, so voice quality and availability vary.</li>
-          <li>Reading passages and questions are in English only, because the goal is to practice reading in English. Arabic help covers instructions.</li>
+          <li>The website is in English only, because the goal is to practice English. Instructions use short, simple sentences, with examples and models.</li>
           <li>Writing in Guided Writing is not marked by the website.</li></ul>
         <h2 style="margin-top:1.2rem">Tell us about a problem</h2>
         <p>If something is hard to use, tell your English teacher or contact the school through its official communication channels. Please say which page and which device you were using.</p></div>
@@ -734,21 +710,22 @@ function viewAccessibility() {
 
 function viewHelp() {
   const faq = [
-    ["Do I need an account?", "No. You can use every learning activity without registering, signing in, or giving your name.", "لا. يمكنك استخدام جميع الأنشطة دون تسجيل أو كتابة اسمك."],
-    ["Do I have to complete every activity?", "No. NVS English Quest is for independent, voluntary learning. Choose the activities that help you most.", "لا. الموقع للتعلّم الذاتي الاختياري، فاختر الأنشطة التي تفيدك أكثر."],
-    ["Where should I start?", `Take the optional <a href="#check">Starting-Point Check</a> to get a suggested reading level, or choose a learning area that interests you. <a href="#start">Start Here</a> explains how the website works.`, "أجرِ «اختبار نقطة البداية» الاختياري، أو اختر القسم الذي يهمّك."],
-    ["How can I check my progress?", `Open <a href="#journey">My English Journey</a>. It shows the progress saved in this browser: what you finished, your first-try accuracy, and what to practice next.`, "افتح «My English Journey» لترى تقدّمك المحفوظ في هذا المتصفح."],
-    ["Will my progress appear on another device?", "Not automatically. Progress is saved only in the browser you are using. Use the same device and browser each time.", "ليس تلقائيًا. يُحفظ تقدّمك في المتصفح الذي تستخدمه فقط."],
-    ["Why does only my first try count?", "Your first try shows what you already know. You can try again to learn from your mistake, but the retry does not change your accuracy.", "المحاولة الأولى تُظهر ما تعرفه فعلًا، والمحاولة الثانية للتعلّم من الخطأ."],
-    ["Can I repeat activities?", "Yes. You can practice any activity again. Practice rounds help you review, and your first result is kept.", "نعم. يمكنك إعادة أي نشاط للمراجعة، وتبقى نتيجتك الأولى محفوظة."],
-    ["The audio does not play. What can I do?", "Check that your device's sound is on. Listening uses your device's built-in voices, so try another browser (for example Chrome or Safari) if no sound plays. You can always read the transcript.", "تأكّد من تشغيل الصوت، أو جرّب متصفحًا آخر، ويمكنك دائمًا قراءة النص المكتوب."],
-    ["What if an activity does not load?", "Refresh the page and check your internet connection. If the problem continues, contact the school through its official communication channels.", "حدّث الصفحة وتحقّق من اتصال الإنترنت. إذا استمرت المشكلة، تواصل مع المدرسة عبر قنواتها الرسمية."],
-    ["How do I start again from zero?", "Press <strong>Reset My Progress</strong> at the bottom of any page. This deletes all progress in this browser and cannot be undone.", "اضغط «Reset My Progress» في أسفل الصفحة. سيُحذف كل تقدّمك في هذا المتصفح نهائيًا."]
+    ["Who is NVS English Quest for?", "National Track students in Grades 7–12 at New Vision Schools. Activities are organized by English level (Level 1 to Level 5), not by school grade. Choose the level that suits your English, whatever grade you are in."],
+    ["Do I need an account?", "No. You can use every learning activity without registering, signing in, or giving your name."],
+    ["Do I have to complete every activity?", "No. NVS English Quest is for independent, voluntary learning. Choose the activities that help you most."],
+    ["Where should I start?", `Take the optional <a href="#check">Starting-Point Check</a> to get a suggested reading level, or choose a learning area that interests you. <a href="#start">Start Here</a> explains how the website works.`],
+    ["How can I check my progress?", `Open <a href="#journey">My English Journey</a>. It shows the progress saved in this browser: what you finished, your first-try accuracy, and what to practice next.`],
+    ["Will my progress appear on another device?", "Not automatically. Progress is saved only in the browser you are using. Use the same device and browser each time."],
+    ["Why does only my first try count?", "Your first try shows what you already know. You can try again to learn from your mistake, but the retry does not change your accuracy."],
+    ["Can I repeat activities?", "Yes. You can practice any activity again. Practice rounds help you review, and your first result is kept."],
+    ["The audio does not play. What can I do?", "Check that your device's sound is on. Listening uses your device's built-in voices, so try another browser (for example Chrome or Safari) if no sound plays. If your browser cannot play the audio, the transcript opens straight away."],
+    ["What if an activity does not load?", "Refresh the page and check your internet connection. If the problem continues, contact the school through its official communication channels."],
+    ["How do I start again from zero?", "Press <strong>Reset My Progress</strong> at the bottom of any page. This deletes all progress in this browser and cannot be undone."]
   ];
   main().innerHTML = `
     <div class="page-head"><p class="eyebrow">${icon("info")} Help</p><h1>Help</h1>
-      <p>Answers to common questions. For Arabic instructions, press <strong>Arabic help</strong> at the top of the page.</p></div>
-    <div class="faq">${faq.map(([q, a, arTxt]) => `<section class="card faq-item"><h2>${esc(q)}</h2><p>${a}</p>${ar(arTxt)}</section>`).join("")}</div>
+      <p>Answers to common questions about using NVS English Quest.</p></div>
+    <div class="faq">${faq.map(([q, a]) => `<section class="card faq-item"><h2>${esc(q)}</h2><p>${a}</p></section>`).join("")}</div>
     <div class="notice section" role="note">${icon("info")}<p>More questions? Ask your English teacher, or read <a href="#about">About NVS English Quest</a> and the <a href="#privacy">Privacy Notice</a>.</p></div>`;
 }
 
@@ -757,12 +734,12 @@ function viewStart() {
   const sc = S.sc;
   main().innerHTML = `
     <div class="page-head start-head">${logoFigure(88, true)}<div><p class="eyebrow">${icon("target")} Start Here</p><h1>How to Use NVS English Quest</h1>
-      <p>NVS English Quest is a New Vision Schools platform for practicing English on your own, at your own speed. Read these four steps once. They take about two minutes.</p>
-      ${ar("NVS English Quest موقع للتدرّب على اللغة الإنجليزية بنفسك وبالسرعة التي تناسبك. اقرأ هذه الخطوات الأربع مرة واحدة، فهي تحتاج إلى دقيقتين تقريبًا.")}</div></div>
+      <p>Welcome to NVS English Quest, an independent English-learning platform designed for National Track students in Grades 7–12 at New Vision Schools. Explore activities at your own level, practice at your own pace, and develop your English skills with confidence.</p>
+      <p>Read these four steps once. They take about two minutes.</p>
+      </div></div>
     <ol class="start-steps">
       <li class="card"><h2><span class="how-n" aria-hidden="true">1</span>Find your reading level</h2>
         <p>Your English level is not the same as your school grade. A student in any grade can start at any level. The <strong>Starting-Point Check</strong> has five short texts and 15 questions. It gives you a <strong>Suggested Starting Level</strong>. It is not a test, and you can change your level at any time.</p>
-        ${ar("مستواك في اللغة الإنجليزية ليس مثل صفّك الدراسي، فيمكن لأي طالب في أي صف أن يبدأ من أي مستوى. يحتوي «اختبار نقطة البداية» على خمسة نصوص قصيرة و15 سؤالًا، ويقترح عليك مستوى للبداية. هذا ليس اختبارًا رسميًا، ويمكنك تغيير مستواك في أي وقت.")}
         ${sc ? `<p class="small"><strong>Your last check (${fmtDate(sc.at)}):</strong> Suggested Starting Level ${sc.suggested}.</p>` : ""}
         <div class="btn-row"><a class="btn primary" href="#check">${icon("target")} ${sc ? "Take the check again" : "Take the Starting-Point Check"}</a><a class="btn ghost" href="#reading">I will choose my own level</a></div></li>
       <li class="card"><h2><span class="how-n" aria-hidden="true">2</span>Follow the same steps in every activity</h2>
@@ -771,17 +748,16 @@ function viewStart() {
           <li><strong>Practice:</strong> choose an answer and press <strong>Check</strong>. Use <strong>Hint</strong> if you need help.</li>
           <li><strong>Review:</strong> read the explanation, especially when your answer was wrong.</li></ul>
         <p class="small">Only your <strong>first try</strong> counts toward your accuracy and mastery. Trying again helps you learn, but guessing does not raise your score.</p>
-        ${ar("في كل نشاط: تعلّم الكلمات أو القاعدة أولًا، ثم اختر الإجابة واضغط «Check»، واستخدم «Hint» عند الحاجة، ثم اقرأ الشرح، وخاصة عندما تكون إجابتك خاطئة. المحاولة الأولى فقط هي التي تُحسب في الدقة والإتقان، لذلك لا يرفع التخمين درجتك.")}</li>
+        </li>
       <li class="card"><h2><span class="how-n" aria-hidden="true">3</span>Choose what to practice</h2>
         <ul class="area-mini">${["reading", "vocab", "grammar", "listening", "writing", "challenge"].map(k => `<li><a href="${AREAS[k].route}">${icon(AREAS[k].icon)}<span><strong>${AREAS[k].name}</strong><br><span class="small muted">${AREAS[k].desc}</span></span></a></li>`).join("")}</ul>
         <p class="small"><strong>Tip:</strong> Reading is the most important skill. Try to spend about half of your practice time in the Reading Academy. Each area has a “How this works” box at the top.</p>
-        ${ar("القراءة هي أهم مهارة، فحاول أن تقضي نصف وقت تدرّبك تقريبًا في «Reading Academy». وفي أعلى كل قسم مربّع بعنوان «How this works» يشرح طريقة العمل.")}</li>
+        </li>
       <li class="card"><h2><span class="how-n" aria-hidden="true">4</span>Check your progress</h2>
         <p>Open <a href="#journey">My English Journey</a> to see what you finished, your first-try accuracy, and what to practice next. Your progress is saved <strong>only in this browser on this device</strong>. (Read the <a href="#privacy">Privacy Notice</a>.) It does not move to other devices, and there is no account. Do not clear your browser data if you want to keep your progress.</p>
-        ${ar("افتح «My English Journey» لترى ما أنجزته ودقة محاولتك الأولى وما يجب أن تتدرّب عليه بعد ذلك. يُحفظ تقدّمك في هذا المتصفح وعلى هذا الجهاز فقط، ولا ينتقل إلى أجهزة أخرى، ولا يوجد حساب. لا تحذف بيانات المتصفح إذا أردت الاحتفاظ بتقدّمك.")}</li>
+        </li>
     </ol>
-    <div class="notice" role="note">${icon("info")}<p><strong>Arabic help:</strong> Press the <strong>Arabic help</strong> button at the top of the page to show short Arabic instructions. Reading texts and questions stay in English, because the goal is to read in English.</p></div>
-    ${ar("اضغط زر «Arabic help» في أعلى الصفحة لإظهار تعليمات قصيرة باللغة العربية أو إخفائها. تبقى النصوص والأسئلة باللغة الإنجليزية لأن الهدف هو القراءة باللغة الإنجليزية.")}`;
+    `;
 }
 
 /* ---------- Starting-Point Check ---------- */
@@ -825,7 +801,6 @@ function viewCheck() {
         <li>You can press <strong>Listen</strong> to hear each text, and you can read it as many times as you want. Listening does not change your result.</li>
         <li>If a text is too difficult, you can press <strong>“This is too difficult. Finish now.”</strong> That is fine. It helps the check suggest the right level.</li>
         <li>At the end, you will see your score, the correct answers with short explanations, and a <strong>Suggested Starting Level</strong>.</li></ul>
-      ${ar("يساعدك هذا الاختبار القصير على اختيار مستوى القراءة المناسب. ستقرأ خمسة نصوص قصيرة، من السهل إلى الأصعب، وتجيب عن ثلاثة أسئلة عن كل نص. لا يوجد وقت محدّد، ويمكنك الضغط على «Listen» لسماع النص. إذا كان النص صعبًا جدًا، يمكنك إنهاء الاختبار، ولا بأس في ذلك. في النهاية سترى درجتك والإجابات الصحيحة مع شرح قصير، ومستوى مقترحًا للبداية.")}
       <div class="notice" role="note">${icon("info")}<p>This is an <strong>informal check</strong>, not an official test or certificate. The suggestion is a starting point only. You can always choose a different level.</p></div>
       ${sc ? `<p class="small"><strong>Your last check (${fmtDate(sc.at)}):</strong> ${sc.total} of 15 correct · Suggested Starting Level ${sc.suggested}. Taking the check again will replace this result.</p>` : ""}
       <div class="btn-row" style="margin-top:1rem">
@@ -854,7 +829,6 @@ function renderCheckSample(msg) {
         <div class="bar" aria-hidden="true" style="margin:.5rem 0 1rem"><span style="width:${pct(CK.i, n)}%"></span></div>
         <h1 style="font-size:1.5rem">${esc(s.title)}</h1>
         <p class="read-instr">${icon("info")} Read the text. Then answer the three questions. You can look at the text while you answer.</p>
-        ${ar("اقرأ النص، ثم أجب عن الأسئلة الثلاثة. يمكنك النظر إلى النص أثناء الإجابة.")}
         ${canSpeak ? `<div class="btn-row"><button class="btn ghost" type="button" id="ckListen" aria-pressed="false">${icon("speaker")} Listen</button><span class="small muted" id="ckAudio" role="status"></span></div>` : `<p class="small muted">${icon("info")} Read-aloud is not available in this browser.</p>`}
         <div class="passage-text ck-text">${s.text.map(p => `<p>${esc(p)}</p>`).join("")}</div>
       </div>
@@ -867,7 +841,7 @@ function renderCheckSample(msg) {
           <button class="btn primary" type="submit" id="ckNext">${CK.i < n - 1 ? "Next text" : "See my results"} ${icon("arrow")}</button>
         </div>
         ${CK.i > 0 ? `<div class="btn-row" style="margin-top:.6rem"><button class="btn ghost small-btn" type="button" id="ckStop">This is too difficult. Finish now.</button></div>
-          ${ar("إذا كان هذا النص صعبًا جدًا، اضغط «This is too difficult. Finish now.» لإنهاء الاختبار. لا بأس في ذلك.")}` : ""}
+          ` : ""}
       </form>
     </div>`;
   document.querySelectorAll("#ckForm input[type=radio]").forEach(r => r.addEventListener("change", () => {
@@ -918,7 +892,6 @@ function renderCheckResults(sc, old) {
         <h1>Suggested Starting Level: Level ${L}</h1>
         <p class="lead"><strong>Level ${L} — ${esc(Lname)}</strong></p>
         <p>${esc(checkWhy(res, sc.scores))}</p>
-        ${ar(`المستوى المقترح للبداية: المستوى ${L}. هذا اقتراح فقط وليس نتيجة رسمية، ويمكنك اختيار مستوى آخر في أي وقت.`)}
         <div class="btn-row" style="margin-top:1rem">
           <a class="btn primary" href="#reading" id="ckGoLevel">${icon("book")} Show Level ${L} passages</a>
           <a class="btn ghost" href="#reading" id="ckOther">Choose a different level</a>
@@ -1064,7 +1037,7 @@ function viewListening() {
   const lvl = levelFor("listening"); const s = areaStats("listening");
   main().innerHTML = `
     <div class="page-head"><p class="eyebrow">${icon("headphones")} Listening practice</p><h1>Listening Corner</h1>
-      <p>Listen to the recording, then answer five questions. You can pause, replay, and slow down the audio. Try to answer before you read the transcript.</p></div>
+      <p>Read the useful words, listen, then answer five questions. You can pause, replay, and slow down the audio. The transcript opens after you answer, so you can check what you heard.</p></div>
     ${howItWorks("listening")}
     <div class="grid g2">
       <div class="card"><p class="eyebrow">Your recommended level</p><h2 style="margin-bottom:.2rem">${levelLabel(lvl, "listening")}</h2>
@@ -1213,7 +1186,6 @@ function passageHTML(act, ev) {
 function readingSupportHTML(act) {
   const L = C.reading.levels[act.level - 1] || {}; const b = act.before;
   return `<p class="read-instr">${icon("info")} Read the passage. Then answer the questions. You can look at the passage while answering.</p>
-    ${ar("اقرأ النص، ثم أجب عن الأسئلة. يمكنك النظر إلى النص أثناء الإجابة. اضغط على الكلمة التي تحتها خط لترى معناها.")}
     ${b ? `<details class="support byr"><summary>${icon("bulb")} Before You Read</summary>
       <p class="small muted" style="margin:.4rem 0 .6rem">Learn these words first. They are also <span class="gloss-demo">underlined</span> in the passage. Tap a word to see its meaning.</p>
       <ul class="word-list">${b.words.map(w => `<li><strong>${esc(w.word)}</strong> — ${esc(w.def)}<br><span class="small muted">Example: “${esc(w.ex)}”</span></li>`).join("")}</ul>
@@ -1245,14 +1217,15 @@ function viewActivity(id) {
       <button class="btn ghost mobile-only" type="button" id="toQuestions">Go to the question ↓</button></article>`;
   else if (act.area === "listening") left = `<article class="card passage-panel listen-panel" aria-labelledby="pTitle">
       <p class="eyebrow">${levelLabel(act.level, "listening")} · ${esc(act.format)} · ${esc(act.topic)}</p><h1 id="pTitle">${esc(act.title)}</h1>
-      <ol class="steps small"><li>Press <strong>Play</strong> and listen carefully.</li><li>Read the question. Replay the audio if you need to.</li><li>Choose your answer. Try to answer <strong>before</strong> you read the transcript.</li></ol>
+      ${listenPreviewHTML(act)}
+      <ol class="steps small"><li>Read the useful words, then press <strong>Play</strong> and listen carefully.</li><li>Read each question. Replay the audio or choose a slower speed if you need to.</li><li>Choose your answer. The transcript opens after you answer all the questions.</li></ol>
       <div id="playerBox">${playerHTML(act)}</div></article>`;
   const isPanel = !!left;
   main().innerHTML = `
     ${act.area === "reading" ? `<nav class="crumbs" aria-label="Breadcrumb"><a class="back-link" href="#reading">← Back to Reading Library</a> <span class="small muted">Your progress is saved automatically.</span></nav>`
       : `<nav class="crumbs" aria-label="Breadcrumb"><a href="${A.route}">${A.name}</a> <span aria-hidden="true">›</span> ${esc(act.title)}</nav>`}
     <div class="${isPanel ? "reader-grid" : "practice-wrap"}">
-      ${isPanel ? left : `<div class="page-head"><p class="eyebrow">${icon(A.icon)} ${A.name}${act.level ? " · " + levelLabel(act.level, act.area) : ""}${act.wtype ? " · " + WTYPE[act.wtype] : ""}${isSetAct(act) ? ` · ${setLabel(act)} · ${esc(plName(act.plevel))} · ${esc(act.topic)}` : ""}</p><h1>${esc(act.title)}</h1><p>${esc(act.desc)}</p></div>`}
+      ${isPanel ? left : `<div class="page-head"><p class="eyebrow">${icon(A.icon)} ${A.name}${act.level ? " · " + levelLabel(act.level, act.area) : ""}${act.wtype ? " · " + WTYPE[act.wtype] : ""}${isSetAct(act) ? ` · ${setLabel(act)} · ${esc(plName(act.plevel))} · ${esc(act.topic)}` : ""}</p><h1>${esc(act.title)}</h1><p>${esc(act.desc)}</p></div>${act.area === "writing" && act.learn ? writingLessonHTML(act) : ""}`}
       <section class="card quiz" id="quiz" aria-label="Questions"></section>
     </div>`;
   if (act.area === "reading" && canSpeak) $("#speakBtn").addEventListener("click", toggleReadAloud);
@@ -1373,7 +1346,24 @@ function learnHTML(act) {
     </div>`;
 }
 const isSetAct = act => act && (act.area === "vocab" || act.area === "grammar");
+/* Writing Workshop lesson: Learn → See an Example → Remember. Open until the student starts answering. */
+function writingLessonBody(act, withCheck) {
+  const L = act.learn;
+  return `<div class="lesson-body">
+      <h3>${icon("book")} Learn</h3><p>${esc(L.explain)}</p>
+      <div class="lesson-example"><p class="eyebrow">See an example</p><p class="model-line">${esc(L.example)}</p>
+        ${L.notes && L.notes.length ? `<ul class="feature-list small">${L.notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}</div>
+      ${L.tips && L.tips.length ? `<h3>${icon("target")} Remember</h3><ul class="feature-list">${L.tips.map(t => `<li>${esc(t)}</li>`).join("")}</ul>` : ""}
+      ${withCheck && L.check && L.check.length ? `<h3>${icon("check")} Check and improve</h3><ul class="feature-list">${L.check.map(t => `<li>${esc(t)}</li>`).join("")}</ul>` : ""}
+    </div>`;
+}
+function writingLessonHTML(act) {
+  const started = act.questions.some(q => S.q[q.id]) || !!S.done[act.id];
+  return `<details class="card lesson" id="lesson" ${started ? "" : "open"}><summary>${icon("book")} Lesson: ${esc(act.learn.skill)} <span class="small muted">${started ? "(tap to review)" : "(read this first)"}</span></summary>${writingLessonBody(act, false)}</details>`;
+}
 function reviewLearnHTML(act) {
+  if (act.area === "writing" && act.learn) return `<div class="card lesson-check">${icon("check")} <strong>Check and improve</strong><ul class="feature-list">${(act.learn.check || []).map(t => `<li>${esc(t)}</li>`).join("")}</ul>
+    <details class="support review-learn"><summary>${icon("book")} Review the lesson</summary>${writingLessonBody(act, false)}</details></div>`;
   return isSetAct(act) ? `<details class="support review-learn"><summary>${icon("book")} Review ${act.area === "vocab" ? "the words" : "the rule"}</summary>${learnHTML(act)}</details>` : "";
 }
 function renderLearn(box) {
@@ -1381,12 +1371,12 @@ function renderLearn(box) {
   box.innerHTML = `${stagePath("learn")}
     <h2>${v ? "Learn the Words" : "Learn the Rule"}</h2>
     <p class="muted">${v ? "Read each word, its meaning, and the example. Say the words aloud." : "Read the rule and the examples. Look carefully at the common mistake."} When you are ready, start the practice. ${v ? "The words" : "The rule"} will be hidden during practice, and you can review ${v ? "them" : "it"} afterwards.</p>
-    ${ar(v ? "اقرأ كل كلمة ومعناها والمثال، وقل الكلمات بصوت مرتفع. عندما تكون مستعدًا، اضغط «Start Practice». ستُخفى الكلمات أثناء التدريب، ويمكنك مراجعتها بعد ذلك." : "اقرأ القاعدة والأمثلة، وانظر بعناية إلى الخطأ الشائع. عندما تكون مستعدًا، اضغط «Start Practice». ستُخفى القاعدة أثناء التدريب، ويمكنك مراجعتها بعد ذلك.")}
     ${learnHTML(act)}
     <div class="btn-row" style="margin-top:1rem"><button class="btn primary" type="button" id="startPractice">Start Practice ${icon("arrow")}</button></div>`;
   box.querySelector("#startPractice").addEventListener("click", () => { session.mode = "normal"; renderQuiz(); const qt = $("#qText"); if (qt) { qt.setAttribute("tabindex", "-1"); qt.focus(); } });
 }
 function renderQuiz() {
+  setTimeout(updateTranscriptLock, 0);
   const box = $("#quiz"); if (!box) return;
   if (session.mode === "learn") return renderLearn(box);
   if (session.mode === "summary") return renderSummary(box);
@@ -1453,10 +1443,10 @@ function feedbackHTML(q) {
     if (session.wrong >= 2) {
       let extra = "";
       if (area === "reading" && q.ev) extra = `<p>Read this part of the text again:</p>${evBlock}`;
-      else if (area === "listening") extra = `<p>${icon("headphones")} Replay the recording. Try the <strong>0.75×</strong> speed and listen for the key words in the hint.</p>`;
+      else if (area === "listening") extra = `<p>${icon("headphones")} Replay the audio. Try the <strong>0.75×</strong> speed and listen for the key words in the hint.</p>`;
       else if (q.kind === "order") extra = `<p>Your sentence should begin with “<strong>${esc(q.accept[0][0])}</strong>”.</p>`;
       else if (q.kind === "para") extra = `<p>The topic sentence is: “<strong>${esc(q.sentences[0])}</strong>”</p>`;
-      else if (q.kind === "correct") extra = `<p>Change only the part with the mistake. Keep the rest of the sentence the same.</p>`;
+      else if (q.kind === "correct") extra = q.q.startsWith("Find the mistake") ? `<p>Change only the part with the mistake. Keep the rest of the sentence the same.</p>` : `<p>Follow the instruction above the sentence. Keep the meaning the same, and check your capital letters and punctuation.</p>`;
       else extra = `<p>Think about the rule, then remove the answers that do not fit.</p>`;
       guide = `<div class="guide"><p><strong>Extra help:</strong> ${esc(q.hint)}</p>${extra}</div>`;
     }
@@ -1637,7 +1627,7 @@ function renderSummary(box) {
   const act = ACTIVITIES[session.aid]; const st = actStats(act.id);
   const weak = [...new Set(act.questions.filter(q => !(S.q[q.id] && S.q[q.id].f)).map(q => q.skillName))];
   const unsolved = act.questions.filter(q => !(S.q[q.id] && S.q[q.id].s));
-  const newQs = unsolved.length ? `<div class="notice" role="note">${icon("info")}<p><strong>This set has ${unsolved.length} new question${unsolved.length > 1 ? "s" : ""}.</strong> ${unsolved.length > 1 ? "They were" : "It was"} added in an update after you finished the set. Your earlier results are kept.</p></div>
+  const newQs = unsolved.length ? `<div class="notice" role="note">${icon("info")}<p><strong>This ${isSetAct(act) ? "set" : "activity"} has ${unsolved.length} new question${unsolved.length > 1 ? "s" : ""}.</strong> ${unsolved.length > 1 ? "They were" : "It was"} added in an update after you finished the ${isSetAct(act) ? "set" : "activity"}. Your earlier results are kept.</p></div>
     <div class="btn-row" style="margin-bottom:1rem"><button class="btn primary" type="button" id="newQsBtn">${icon("arrow")} Answer the new question${unsolved.length > 1 ? "s" : ""}</button></div>` : "";
   box.innerHTML = (isSetAct(act) ? stagePath("review") : "") + `<p class="tag green">${icon("check")} You completed this activity</p>${newQs}<h2 style="margin-top:.6rem">Your results</h2>` +
     resultsCore(act, st.first, st.total, skillLines(act.questions, i => !!(S.q[act.questions[i].id] && S.q[act.questions[i].id].f)), weak, i => !!(S.q[act.questions[i].id] && S.q[act.questions[i].id].f)) + reviewLearnHTML(act);
@@ -1669,12 +1659,16 @@ function viewGuided(id) {
     <nav class="crumbs" aria-label="Breadcrumb"><a href="#writing">Writing Workshop</a> <span aria-hidden="true">›</span> ${esc(act.title)}</nav>
     <div class="page-head"><p class="eyebrow">${icon("pen")} ${levelLabel(act.level, "writing")} · Guided Writing</p><h1>${esc(act.title)}</h1></div>
     <div class="card how-steps"><p class="eyebrow">${icon("info")} How to do this task</p>
-      <ol class="steps-inline"><li><strong>Read the task</strong> below.</li><li><strong>Study the model answer</strong> for ideas (press “Show Model Answer”).</li><li><strong>Use</strong> the sentence starters and word bank.</li><li><strong>Write</strong> your own sentences in “My writing”.</li><li><strong>Check</strong> your writing with the checklist, then improve one sentence.</li></ol>
-      ${ar("١. اقرأ المهمة. ٢. ادرس نموذج الإجابة لتأخذ منه أفكارًا (اضغط «Show Model Answer»). ٣. استخدم بدايات الجمل وبنك الكلمات. ٤. اكتب جملك بنفسك في «My writing». ٥. راجع كتابتك باستخدام قائمة التحقّق، ثم حسِّن جملة واحدة. لا يصحّح الموقع كتابتك؛ اعرضها على معلّمك.")}</div>
+      <ol class="steps-inline"><li><strong>Learn</strong> the skill and study the example.</li><li><strong>Plan</strong> your ideas in the organizer.</li><li><strong>Write</strong> your own sentences. Use the starters and word bank if you need them.</li><li><strong>Check</strong> your writing against the success criteria and your checklist.</li><li><strong>Compare</strong> with the model answer, then improve your writing.</li></ol>
+      </div>
     <div class="guided-grid">
       <div>
-        <div class="card"><p class="eyebrow">Your task</p><p class="prompt">${esc(act.prompt)}</p>
+        ${act.learn ? `<details class="card lesson" ${d.text && d.text.trim() ? "" : "open"}><summary>${icon("book")} Lesson: ${esc(act.learn.skill)}</summary>${writingLessonBody(act, false)}</details>` : ""}
+        <div class="card" style="margin-top:1rem"><p class="eyebrow">Your task</p><p class="prompt">${esc(act.prompt)}</p>
+          ${act.criteria.length ? `<h2 style="font-size:1.05rem;margin-top:.8rem">Success criteria</h2><ul class="feature-list small">${act.criteria.map(c => `<li>${esc(c)}</li>`).join("")}</ul>` : ""}
           <p class="small muted" style="margin:0">${icon("info")} Do not write your name or any personal information.</p></div>
+        ${act.plan.length ? `<div class="card" style="margin-top:1rem"><h2 style="font-size:1.1rem">Plan your ideas</h2><p class="small muted">Write short notes. You do not need full sentences here. Your notes save on this device.</p>
+          <div class="plan-grid">${act.plan.map((pl, i) => `<div><label for="plan${i}">${esc(pl)}</label><input id="plan${i}" type="text" data-plan="${i}" maxlength="200" value="${esc((d.plan || [])[i] || "")}"></div>`).join("")}</div></div>` : ""}
         <div class="card" style="margin-top:1rem">
           <h2 style="font-size:1.1rem">Sentence starters</h2><p class="small muted">Tap a starter to add it to your writing.</p>
           <div class="chip-row">${act.starters.map((s, i) => `<button type="button" class="chip" data-starter="${i}">${esc(s)}</button>`).join("")}</div>
@@ -1694,13 +1688,14 @@ function viewGuided(id) {
         <div class="card" style="margin-top:1rem"><h2 style="font-size:1.1rem">My checklist</h2><p class="small muted">Read your writing. Tick each item only when it is true.</p>
           <div id="selfChecks">${act.checklist.map((c, i) => `<label class="check-item"><input type="checkbox" data-ci="${i}" ${d.checks && d.checks[i] ? "checked" : ""}> <span>${esc(c)}</span></label>`).join("")}</div></div>
         <div class="card" style="margin-top:1rem">
-          <div class="btn-row"><button class="btn ghost" type="button" id="modelBtn" aria-expanded="false" aria-controls="modelBox">${icon("eye")} Show Model Answer</button>
+          <div class="btn-row"><button class="btn ghost" type="button" id="modelBtn" aria-expanded="false" aria-controls="modelBox" aria-describedby="modelNote">${icon("eye")} Show Model Answer</button>
             <button class="btn secondary" type="button" id="completeBtn">${icon("check")} Mark Draft as Complete</button></div>
           <div id="modelBox" hidden><p class="eyebrow" style="margin-top:1rem">Model answer</p><p class="evidence" style="font-style:normal">${esc(act.model)}</p>
             <h3 style="font-size:1rem">Compare and revise</h3><ul class="feature-list small">
-              <li>Does your first sentence tell the main idea, like the model?</li><li>Did you give details or examples to support your idea?</li>
-              <li>Did you use some words from the word bank?</li><li>Can you add one more detail or fix one sentence to make it clearer?</li></ul>
+              <li>Does your first sentence tell the main idea, like the model?</li><li>Did you include every part listed in the success criteria?</li>
+              ${act.revise.map(r => `<li>${esc(r)}</li>`).join("")}</ul>
             <p class="small muted">Use the model for ideas. Do not copy it. Your writing should be your own.</p></div>
+          <p class="small muted" id="modelNote"></p>
           <div id="completeMsg" role="status"></div>
           ${S.done[id] ? `<p class="small" style="color:var(--green-d)"><strong>${icon("check")} Draft completed on ${fmtDate(S.done[id].at)}.</strong> You can keep revising.</p>` : ""}
         </div>
@@ -1709,16 +1704,22 @@ function viewGuided(id) {
       </div>
     </div>`;
   const ta = $("#gText"); let tmr;
-  const persist = () => { const cur = S.w[id] || {}; S.w[id] = { text: ta.value, checks: act.checklist.map((c, i) => !!document.querySelector(`[data-ci="${i}"]`).checked), at: new Date().toISOString(), done: cur.done || false }; S.last = id; save(); $("#saveState").textContent = "Draft saved on this device."; };
-  const refresh = () => { if (!ta.value.trim()) { $("#autoChecks").innerHTML = `<li class="no">${icon("info")}<span>Start writing to see the checks.</span></li>`; return; }
+  const persist = () => { const cur = S.w[id] || {}; S.w[id] = { text: ta.value, checks: act.checklist.map((c, i) => !!document.querySelector(`[data-ci="${i}"]`).checked), plan: act.plan.map((p, i) => { const el = document.querySelector(`[data-plan="${i}"]`); return el ? el.value : ""; }), at: new Date().toISOString(), done: cur.done || false }; S.last = id; save(); $("#saveState").textContent = "Draft saved on this device."; };
+  /* The model answer is for comparison AFTER the student has written a draft of the required length. */
+  const modelOpen = () => !!S.done[id] || sentencesOf(ta.value).length >= act.minSentences;
+  const lockModel = () => { const b = $("#modelBtn"), open = modelOpen(); b.disabled = !open;
+    $("#modelNote").textContent = open ? "Compare your draft with the model, then improve one or two sentences." : `The model answer opens after you write at least ${act.minSentences} sentences. Try on your own first.`;
+    if (!open) { $("#modelBox").hidden = true; b.setAttribute("aria-expanded", "false"); b.innerHTML = `${icon("eye")} Show Model Answer`; } };
+  const refresh = () => { lockModel(); if (!ta.value.trim()) { $("#autoChecks").innerHTML = `<li class="no">${icon("info")}<span>Start writing to see the checks.</span></li>`; return; }
     $("#autoChecks").innerHTML = simpleChecks(act, ta.value).map(c => `<li class="${c.ok ? "ok" : "no"}">${icon(c.ok ? "check" : "info")}<span>${c.text}</span></li>`).join(""); };
-  ta.addEventListener("input", () => { refresh(); clearTimeout(tmr); $("#saveState").textContent = "Saving…"; tmr = setTimeout(persist, 500); });
+  ta.addEventListener("input", () => { refresh(); lockModel(); clearTimeout(tmr); $("#saveState").textContent = "Saving…"; tmr = setTimeout(persist, 500); });
   const insert = txt => { const s = ta.selectionStart ?? ta.value.length, e = ta.selectionEnd ?? ta.value.length; const before = ta.value.slice(0, s);
     const pre = before && !/\s$/.test(before) ? " " : ""; ta.value = before + pre + txt + ta.value.slice(e); const pos = (before + pre + txt).length; ta.focus(); ta.setSelectionRange(pos, pos); refresh(); persist(); };
   document.querySelectorAll("[data-starter]").forEach(b => b.addEventListener("click", () => insert(act.starters[Number(b.dataset.starter)].replace(/…/g, "").replace(/\s*\/\s*/g, " / ").replace(/\s+$/, "") + " ")));
   document.querySelectorAll("[data-word]").forEach(b => b.addEventListener("click", () => insert(act.wordBank[Number(b.dataset.word)] + " ")));
   document.querySelectorAll("[data-ci]").forEach(c => c.addEventListener("change", persist));
-  $("#modelBtn").addEventListener("click", () => { const box = $("#modelBox"); const open = box.hidden; box.hidden = !open; $("#modelBtn").setAttribute("aria-expanded", String(open)); $("#modelBtn").innerHTML = `${icon("eye")} ${open ? "Hide Model Answer" : "Show Model Answer"}`; });
+  document.querySelectorAll("[data-plan]").forEach(c => c.addEventListener("input", () => { clearTimeout(tmr); tmr = setTimeout(persist, 500); }));
+  $("#modelBtn").addEventListener("click", () => { if (!modelOpen()) return; const box = $("#modelBox"); const open = box.hidden; box.hidden = !open; $("#modelBtn").setAttribute("aria-expanded", String(open)); $("#modelBtn").innerHTML = `${icon("eye")} ${open ? "Hide Model Answer" : "Show Model Answer"}`; });
   $("#completeBtn").addEventListener("click", () => {
     persist(); const sents = sentencesOf(ta.value).length; const allTicked = act.checklist.every((c, i) => document.querySelector(`[data-ci="${i}"]`).checked);
     const missing = [];
@@ -1734,7 +1735,7 @@ function viewGuided(id) {
     box.innerHTML = `<div class="fb ok" style="margin-top:1rem"><h3>${icon("check")} Draft ${firstTime ? "completed" : "updated"}</h3><p>Well done for finishing your draft. Remember: this is self-checked practice. Ask your teacher to read it.</p></div>`;
     announce("Draft completed.");
   });
-  refresh();
+  refresh(); lockModel();
 }
 
 /* ===================== CHALLENGE ARENA ===================== */
@@ -1945,8 +1946,6 @@ function init() {
     if (!e.target.closest("#glossPop")) closeGloss(); });
   document.addEventListener("keydown", e => { if (e.key === "Escape" && document.getElementById("glossPop")) { const b = document.querySelector(".gloss[aria-expanded='true']"); closeGloss(); if (b) b.focus(); } });
   $("#footerReset").addEventListener("click", openReset);
-  const arb = $("#arBtn"); if (arb) arb.addEventListener("click", () => { Prefs.ar = !Prefs.ar; savePrefs(); applyArabic(); announce(Prefs.ar ? "Arabic help is on." : "Arabic help is off."); });
-  applyArabic();
   $("#confirmReset").addEventListener("click", doReset);
   $("#cancelReset").addEventListener("click", () => $("#resetDialog").close());
   window.addEventListener("hashchange", router);
@@ -1955,7 +1954,7 @@ function init() {
 }
 const API = { ACTIVITIES, ALLQ, PASSAGES, AREAS, LEVELS: C.reading.levels, CATEGORIES: C.reading.categories || [], state: () => S,
   icon, esc, pct, bar, barRow, actState, actStats, statsFor, isDone, levelFor, levelLabel, accText, started, canSpeak,
-  howItWorks, readingLevel, checkResult: () => S.sc || null, ar };
+  howItWorks, readingLevel, checkResult: () => S.sc || null };
 if (window.NVSReading) NVSReading.install(API);
 window.NVSQ = { ACTIVITIES, ALLQ, BADGES, SKILLS, CHALLENGES, state: () => S, session: () => session, buildChallenge, isoWeek, version: APP_VERSION };
 init();

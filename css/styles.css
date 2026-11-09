@@ -246,7 +246,6 @@ main:focus{outline:none}
 .footer-nav a{display:inline-flex;align-items:center;min-height:44px;padding:0 .6rem;color:var(--navy);font-weight:600;text-decoration:none;border-radius:8px}
 .footer-nav a:hover{background:var(--blue-l);text-decoration:underline}
 .footer-base{max-width:1200px;margin:0 auto;padding:.7rem 1.2rem 1.1rem;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:.3rem 1.5rem;align-items:center;justify-content:space-between}
-.footer-base .ar-help{flex-basis:100%}
 .linkbtn{font:inherit;background:none;border:0;padding:.55rem .2rem;min-height:44px;color:#9b2c2c;font-weight:700;text-decoration:underline;cursor:pointer}
 .linkbtn:hover{color:#7a1f1f}
 @media (max-width:600px){.footer-inner{flex-direction:column;align-items:flex-start}.footer-nav ul{margin-left:-.6rem}}
@@ -432,15 +431,7 @@ details.support summary .ic{color:var(--gold)}
 .ex-box .mistake{text-decoration:line-through;text-decoration-color:#b9770e;color:#6b4a10}
 .review-learn{margin-top:1rem}
 
-/* ---------- Version 3D: Arabic help, guides, Start Here, Starting-Point Check ---------- */
-.ar-btn{margin-left:.6rem;background:transparent;border:2px solid rgba(255,255,255,.55);color:#fff;border-radius:10px;padding:.4rem .7rem;font:inherit;font-size:.85rem;font-weight:700;cursor:pointer;min-height:44px;white-space:nowrap}
-.ar-btn [lang="ar"]{font-size:1rem}
-.ar-btn[aria-pressed="true"]{background:var(--gold);color:var(--navy);border-color:var(--gold)}
-@media (max-width:980px){.ar-btn{margin-left:auto}.ar-btn + .menu-btn{margin-left:.5rem}}
-@media (max-width:600px){.ar-long{display:none}}
-.ar-help{display:none;direction:rtl;text-align:right;font-family:"Segoe UI",Tahoma,"Noto Naskh Arabic","Geeza Pro",Arial,sans-serif;font-size:1.02rem;line-height:1.8;color:#2b3a52;background:#f7f4ec;border-right:4px solid var(--gold);border-radius:10px;padding:.45rem .8rem;margin:.4rem 0 .8rem}
-body.ar-on .ar-help{display:block}
-.site-footer .ar-help{margin-top:.5rem}
+/* ---------- Guides, Start Here, Starting-Point Check ---------- */
 .how-box{padding:.9rem 1.1rem}
 .how-box>summary{cursor:pointer;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;min-height:44px}
 .how-list{margin:.6rem 0 0;display:grid;gap:.7rem}
@@ -502,3 +493,25 @@ summary{min-height:44px;padding-top:.35rem;padding-bottom:.35rem;cursor:pointer}
 .faq-item p{margin:0;max-width:75ch}
 .tech-details summary{cursor:pointer;font-weight:700;color:var(--navy);display:flex;gap:.5rem;align-items:center;min-height:44px}
 .tech-details[open] summary{margin-bottom:.4rem}
+
+/* ---------- Final Updated Launch: audience line, listening preview, writing lessons ---------- */
+.hero .hero-sub{font-size:1.12rem;font-weight:700;color:#f3d79f;margin:.35rem 0 .5rem;letter-spacing:.01em}
+.f-audience{font-weight:600;color:var(--navy)}
+.listen-intro{margin:.2rem 0 .7rem}
+.listen-words{background:var(--blue-l);border-radius:10px;padding:.6rem .9rem;margin:0 0 .8rem}
+.listen-words .eyebrow{margin:0 0 .3rem}
+.listen-words ul{margin:0;padding-left:1.1rem;display:grid;gap:.15rem;font-size:.95rem}
+#trBtn:disabled{opacity:.6;cursor:not-allowed}
+.lesson{margin:0 0 1rem}
+.lesson>summary{cursor:pointer;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;min-height:44px}
+.lesson-body h3{font-size:1.02rem;display:flex;align-items:center;gap:.4rem;margin:1rem 0 .3rem}
+.lesson-body p{max-width:75ch}
+.lesson-example{background:var(--blue-l);border-left:5px solid var(--blue);border-radius:10px;padding:.7rem 1rem;margin:.6rem 0}
+.lesson-example .eyebrow{margin:0 0 .3rem}
+.model-line{font-weight:600;color:var(--navy);margin:0 0 .4rem}
+.lesson-check{margin-top:1rem}
+.plan-grid{display:grid;gap:.6rem}
+.plan-grid label{font-weight:600;color:var(--navy);font-size:.95rem}
+.plan-grid input{width:100%;font:inherit;padding:.55rem .7rem;border:1px solid var(--line);border-radius:8px;min-height:44px}
+.model-locked{color:var(--muted)}
+.nowrap{white-space:nowrap}
