@@ -33,6 +33,9 @@ p{margin:0 0 .8rem}
 .logo-figure img{display:block;height:auto}
 .brand-name{font-family:var(--serif);font-size:1.3rem;font-weight:700;display:block;line-height:1.1}
 .brand-sub{font-size:.8rem;opacity:.9;display:block}
+/* Audience line, shown in the shared header on every page and at every screen size. Gold on navy: 5.4:1. */
+.brand-track{display:block;font-size:.84rem;font-weight:700;color:var(--gold);letter-spacing:.01em;line-height:1.25;margin-top:.15rem}
+.bt-grades{white-space:nowrap}
 .tagline{margin-left:auto;font-size:.85rem;color:#f3d79f;letter-spacing:.02em;text-align:right}
 .menu-btn{display:none;margin-left:auto;background:transparent;border:2px solid rgba(255,255,255,.5);color:#fff;border-radius:10px;padding:.45rem .7rem;font:inherit;font-weight:600;cursor:pointer;min-height:44px;align-items:center;gap:.4rem}
 .main-nav{background:var(--navy-2);border-top:1px solid rgba(255,255,255,.08)}
@@ -471,11 +474,11 @@ summary{min-height:44px;padding-top:.35rem;padding-bottom:.35rem;cursor:pointer}
 :focus-visible{outline:3px solid var(--navy);outline-offset:3px;box-shadow:0 0 0 6px rgba(230,173,69,.6)}
 .site-header :focus-visible,.main-nav :focus-visible{outline-color:var(--gold);box-shadow:none}
 .opt:has(input:focus-visible){outline:3px solid var(--navy);outline-offset:2px;box-shadow:0 0 0 6px rgba(230,173,69,.6)}
-/* Version 3D: keep the header compact on phones (the Arabic help button needs room). */
+/* Keep the header compact on phones: the "New Vision Schools · Riyadh" line is hidden; the National Track line stays visible. */
 @media (max-width:600px){.brand-sub{display:none}.brand-name{font-size:1.15rem}.header-inner{gap:.6rem}}
 
 /* ---------- Official Launch Edition: logo placement and institutional pages ---------- */
-@media (max-width:520px){.brand-logo{width:52px;height:52px}.brand-name{font-size:1.12rem}.brand-sub{font-size:.75rem}}
+@media (max-width:520px){.brand-logo{width:52px;height:52px}.brand-name{font-size:1.12rem}.brand-sub{font-size:.75rem}.brand-track{font-size:.76rem}.bt-sep{display:none}.bt-grades{display:block}}
 .start-head,.about-head{display:flex;gap:1.2rem;align-items:center;flex-wrap:wrap}
 .start-head>div,.about-head>div{flex:1 1 280px;min-width:0}
 .about-head .lead{color:var(--navy);font-weight:600;margin:0}
