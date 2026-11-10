@@ -479,10 +479,9 @@ function viewHome() {
   };
   main().innerHTML = `
     <section class="hero">
-      <span class="tag">${icon("route")} New Vision Schools · Riyadh</span>
+      <span class="tag">${icon("route")} New Vision Schools · National Track · Grades 7–12</span>
       <h1 style="margin-top:.7rem">Welcome to NVS English Quest</h1>
-      <p class="hero-sub">Independent English Learning for National Track Students | <span class="nowrap">Grades 7–12</span></p>
-      <p>Practice English at your own level and your own pace, one step at a time.</p>
+      <p>Independent English Learning for National Track Students in Grades 7–12. Learn at your own level and your own pace, one step at a time.</p>
       <div class="btn-row" style="margin-top:1rem">
         <a class="btn gold" href="${rec ? ACTIVITIES[rec.id].route : "#challenge"}">${icon("arrow")} ${rec ? rec.cta + " learning" : "Try a challenge"}</a>
         <a class="btn ghost" href="#journey">${icon("chart")} See my progress</a>
