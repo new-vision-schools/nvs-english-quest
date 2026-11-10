@@ -314,13 +314,18 @@ const accText = a => (a === null ? "—" : a + "%");
 
 /* ===================== LISTENING PLAYER (SpeechSynthesis) ===================== */
 const canSpeak = "speechSynthesis" in window && "SpeechSynthesisUtterance" in window;
-const Player = { act: null, chunks: [], i: 0, state: "idle", rate: 1, token: 0, root: null };
+const Player = { act: null, chunks: [], i: 0, state: "idle", rate: 1, token: 0, root: null, audio: null, mode: "speech" };
+/* Recorded audio: one MP3 per listening activity (audio/listening/<id>.mp3), made from the exact script with
+   natural voices matched to each speaker. If a file cannot load or play, the player falls back to browser speech. */
+const LISTEN_AUDIO_DIR = "audio/listening/";
+/* Joke voices that some Apple devices list as English; never use them to read an activity. */
+const NOVELTY_VOICES = /^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox)\b/i;
 function englishVoices() {
   if (!canSpeak) return [];
-  const v = speechSynthesis.getVoices().filter(x => /^en[-_]/i.test(x.lang));
+  const v = speechSynthesis.getVoices().filter(x => /^en[-_]/i.test(x.lang) && !NOVELTY_VOICES.test(x.name || ""));
   return v.sort((a, b) => (/en[-_](US|GB)/i.test(b.lang) ? 1 : 0) - (/en[-_](US|GB)/i.test(a.lang) ? 1 : 0));
 }
-function stopSpeech() { Player.token++; Player.state = "idle"; if (canSpeak) { try { speechSynthesis.cancel(); } catch (e) {} } }
+function stopSpeech() { Player.token++; Player.state = "idle"; if (Player.audio) { try { Player.audio.pause(); } catch (e) {} } if (canSpeak) { try { speechSynthesis.cancel(); } catch (e) {} } }
 function playerHTML(act) {
   const sp = Object.entries(act.speakers).map(([n, r]) => `<strong>${esc(n)}</strong> (${esc(r)})`).join(", ");
   const transcript = act.script.map(l => `<p><strong>${esc(l.sp)}:</strong> ${esc(l.t)}</p>`).join("");
@@ -368,8 +373,30 @@ function bindPlayer(act, root) {
   updateTranscriptLock();
   if (!canSpeak) return;
   root.querySelectorAll("[data-pa]").forEach(b => b.addEventListener("click", () => playerAction(b.dataset.pa)));
-  root.querySelectorAll('input[name="speed"]').forEach(r => r.addEventListener("change", () => { Player.rate = Number(r.value); if (Player.state === "playing") { Player.token++; speechSynthesis.cancel(); speakChunk(); } updatePlayerUI(); }));
+  root.querySelectorAll('input[name="speed"]').forEach(r => r.addEventListener("change", () => { Player.rate = Number(r.value);
+    if (Player.mode === "file" && Player.audio) Player.audio.playbackRate = Player.rate;
+    else if (Player.state === "playing") { Player.token++; speechSynthesis.cancel(); speakChunk(); }
+    updatePlayerUI(); }));
+  Player.audio = null; Player.mode = "speech";
+  if (typeof Audio !== "undefined") {
+    const au = new Audio(); au.preload = "auto"; Player.audio = au; Player.mode = "file";
+    au.addEventListener("ended", () => { if (Player.audio !== au) return; Player.state = "done"; updatePlayerUI(); });
+    au.addEventListener("timeupdate", () => { if (Player.audio === au) updatePlayerUI(); });
+    au.addEventListener("error", () => { if (Player.audio === au) audioFailed(); });
+    au.src = LISTEN_AUDIO_DIR + act.id + ".mp3";
+  }
   updatePlayerUI();
+}
+/* The recording could not load or play: switch to browser speech (and keep playing if the student pressed Play). */
+function audioFailed() {
+  if (Player.audio) { try { Player.audio.pause(); } catch (e) {} }
+  Player.audio = null; Player.mode = "speech";
+  if (Player.state === "playing") { Player.i = 0; speakChunk(); } else updatePlayerUI();
+}
+function startFile(au) {
+  Player.state = "playing"; au.playbackRate = Player.rate;
+  let p; try { p = au.play(); } catch (e) { audioFailed(); return; }
+  if (p && p.catch) p.catch(err => { if (Player.audio !== au || (err && err.name === "AbortError")) return; audioFailed(); });
 }
 function speakChunk() {
   const my = ++Player.token;
@@ -390,6 +417,13 @@ function speakChunk() {
   speechSynthesis.speak(u); updatePlayerUI();
 }
 function playerAction(a) {
+  const au = Player.mode === "file" ? Player.audio : null;
+  if (au) {
+    if (a === "play" || a === "replay") { try { au.currentTime = 0; } catch (e) {} startFile(au); }
+    else if (a === "pause") { Player.state = "paused"; au.pause(); }
+    else if (a === "resume") startFile(au);
+    updatePlayerUI(); return;
+  }
   if (a === "play" || a === "replay") { Player.token++; speechSynthesis.cancel(); Player.i = 0; Player.state = "playing"; speakChunk(); }
   else if (a === "pause") { Player.state = "paused"; Player.token++; speechSynthesis.cancel(); updatePlayerUI(); }
   else if (a === "resume") { Player.state = "playing"; speakChunk(); }
@@ -407,7 +441,8 @@ function updatePlayerUI() {
   const msg = { idle: "Ready. Press Play to listen.", playing: `Playing at ${Player.rate}× speed…`, paused: "Paused. Press Resume to continue.", done: "Finished. Press Replay to listen again.",
     error: "The audio could not play on this device. Try again, or use Show Transcript to read the script." }[st];
   const sEl = r.querySelector("#playerStatus"); if (sEl && sEl.textContent !== msg) sEl.textContent = msg;
-  const p = r.querySelector("#playerProg"); if (p) p.style.width = (st === "done" ? 100 : pct(Player.i, Player.chunks.length)) + "%";
+  const p = r.querySelector("#playerProg"); const au = Player.mode === "file" ? Player.audio : null;
+  if (p) p.style.width = (st === "done" ? 100 : au && au.duration ? Math.round(100 * au.currentTime / au.duration) : pct(Player.i, Player.chunks.length)) + "%";
   updateTranscriptLock();
 }
 
@@ -699,7 +734,7 @@ function viewAccessibility() {
         <ul class="feature-list">
           <li>The website has <strong>not been formally audited</strong> for full WCAG 2.2 conformance, so we do not claim full compliance.</li>
           <li>Testing used automated checks and keyboard testing in Google Chrome. It has <strong>not yet been tested with screen readers</strong> (such as NVDA or VoiceOver) on students' own devices.</li>
-          <li>Read-aloud and listening activities use the voices built into your device, so voice quality and availability vary.</li>
+          <li>Listening activities play recordings made with natural-sounding computer-generated voices. Read-aloud elsewhere (for example, reading passages) uses the voices built into your device, so voice quality and availability vary.</li>
           <li>The website is in English only, because the goal is to practice English. Instructions use short, simple sentences, with examples and models.</li>
           <li>Writing in Guided Writing is not marked by the website.</li></ul>
         <h2 style="margin-top:1.2rem">Tell us about a problem</h2>
@@ -717,7 +752,7 @@ function viewHelp() {
     ["Will my progress appear on another device?", "Not automatically. Progress is saved only in the browser you are using. Use the same device and browser each time."],
     ["Why does only my first try count?", "Your first try shows what you already know. You can try again to learn from your mistake, but the retry does not change your accuracy."],
     ["Can I repeat activities?", "Yes. You can practice any activity again. Practice rounds help you review, and your first result is kept."],
-    ["The audio does not play. What can I do?", "Check that your device's sound is on. Listening uses your device's built-in voices, so try another browser (for example Chrome or Safari) if no sound plays. If your browser cannot play the audio, the transcript opens straight away."],
+    ["The audio does not play. What can I do?", "Check that your device's sound is on. Each listening activity plays a recording; if the recording cannot load, your device's built-in voice reads the script instead. If no sound plays, try another browser (for example Chrome or Safari). If your browser cannot play the audio, the transcript opens straight away."],
     ["What if an activity does not load?", "Refresh the page and check your internet connection. If the problem continues, contact the school through its official communication channels."],
     ["How do I start again from zero?", "Press <strong>Reset My Progress</strong> at the bottom of any page. This deletes all progress in this browser and cannot be undone."]
   ];
@@ -1044,7 +1079,7 @@ function viewListening() {
         ${barRow("Listening questions completed", s.completion, "", `${s.solved} of ${s.total}`)}
         ${barRow("Listening mastery (correct on first try)", s.mastery, "green", s.att ? s.mastery + "%" : "Not started")}</div>
       <div class="notice" role="note">${icon("info")}<div>
-        <p><strong>How the audio works:</strong> Your device reads the script aloud with its built-in English voice. Voices sound different on different devices.</p>
+        <p><strong>How the audio works:</strong> Each activity plays a recording of the script, made with natural-sounding computer-generated voices, with a different voice for each speaker. If the recording cannot load, your device reads the script aloud with its built-in English voice instead.</p>
         ${canSpeak ? `<p style="margin-top:.5rem">Tip: Use headphones in class, and try the <strong>0.75×</strong> speed if the speakers are fast.</p>` : `<p style="margin-top:.5rem"><strong>Your browser cannot play audio.</strong> You can still practice by reading the transcript in each activity.</p>`}</div></div>
     </div>
     ${levelHub("listening", "", id => { const a = ACTIVITIES[id]; return `<a class="card p-card" href="${a.route}"><div class="p-meta"><span class="tag">${esc(a.format)}</span><span class="tag gold">${esc(a.topic)}</span></div><h3>${esc(a.title)}</h3>${statusHTML(id)}</a>`; })}`;
