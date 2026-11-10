@@ -12,7 +12,7 @@ window.NVS_ADMIN_CONFIG = {
   /* Supabase → Project Settings → API → Project URL, e.g. "https://abcdefghijkl.supabase.co" */
   supabaseUrl: "https://phescfnedysakktedztv.supabase.co",
   /* Supabase → Project Settings → API Keys → Publishable key ("sb_publishable_...") or the legacy "anon" key */
-  sb_publishable_cTViqET8JLBq-y4csjUI6w_IhtBxWYG
+  supabasePublishableKey: "sb_publishable_cTViqET8JLBq-y4csjUI6w_IhtBxWYG",
   /* Link to your Cloudflare Web Analytics page (website visits are viewed there) */
   cloudflareDashboardUrl: "https://dash.cloudflare.com/?to=/:account/web-analytics"
 };
