@@ -12,11 +12,11 @@
    ===================================================================== */
 window.NVS_ANALYTICS_CONFIG = {
   /* Master switch. While this is false, the website sends nothing to anyone. */
-  enabled: false,
+  enabled: true,
 
   /* Anonymous learning statistics: the address of the Supabase "ingest" function.
      Example format: "https://YOUR-PROJECT-REF.supabase.co/functions/v1/ingest"  */
-  ingestUrl: "",
+  ingestUrl: "https://phescfnedysakktedztv.supabase.co/functions/v1/ingest",
 
   /* Website traffic: the site token from Cloudflare Web Analytics (Add a site → copy the token).
      Leave empty to skip Cloudflare. */
