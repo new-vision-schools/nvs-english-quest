@@ -666,80 +666,32 @@ function viewPrivacy() {
   const st = window.NVSAnalytics ? window.NVSAnalytics.status() : { enabled: false, learning: false, traffic: false };
   const on = st.learning || st.traffic;
   main().innerHTML = `
-    <div class="page-head"><p class="eyebrow">${icon("info")} Privacy</p><h1>Privacy Notice</h1>
-      <p>NVS English Quest is free and voluntary. You do not need an account, and the website never asks for your name or student ID.</p>
+    <div class="page-head"><p class="eyebrow">${icon("info")} Privacy Notice</p><h1>Your Privacy Matters</h1>
+      <p>NVS English Quest respects student privacy and aims to provide a safe and supportive learning environment.</p>
       </div>
-    <div class="card section"><h2>Anonymous statistics on this website are <span class="tag ${on ? "green" : "navy"}">${on ? "ON" : "OFF"}</span></h2>
-      <p>${on ? "The school has switched on anonymous statistics. They show the English Department how the platform is used overall. They are not used to check on any student." : "The website is not sending any statistics. Nothing about how you use the website leaves this device."}</p>
+    <div class="card section"><h2>Your progress</h2>
+      <p>Your learning progress is saved on your device, allowing you to continue practicing and track your achievements. You do not need an account, and the website never asks for your name or student ID.</p>
+      <p>Your saved progress stays in this browser. Clearing your browser data, or pressing <strong>Reset My Progress</strong>, deletes it.</p>
       </div>
-    <div class="grid g2 section">
-      <div class="card"><h2>Your progress</h2>
-        <ul class="feature-list">
-          <li>Your answers, scores, badges, and writing drafts are saved <strong>in this browser on this device</strong>.</li>
-          <li>Your saved progress is never sent to the school or to any server.</li>
-          <li>It does not move to another device or browser automatically.</li>
-          <li>Clearing your browser data, or pressing <strong>Reset My Progress</strong>, deletes it. It cannot be brought back.</li></ul>
-        </div>
-      <div class="card"><h2>Anonymous statistics (only when switched on)</h2>
-        <ul class="feature-list">
-          <li>Which learning area was opened, for example Reading Academy.</li>
-          <li>Which activity was finished, and how many questions were correct on the first try, out of how many.</li>
-          <li>The suggested level from the Starting-Point Check (not your answers).</li>
-          <li>Which type of challenge was finished, and how many answers were correct.</li>
-          <li>Website visits and device type (phone, tablet, or computer), through Cloudflare Web Analytics.</li></ul>
-        <p class="small">These figures are used only to understand overall engagement, for example which areas are used most.</p></div>
-    </div>
-    <div class="card section"><h2>What is never collected</h2>
-      <ul class="feature-list">
-        <li>Your name, student ID, email address, class, or section.</li>
-        <li>Your answers to individual questions, or anything you write.</li>
-        <li>Your saved progress, score history, or badges.</li>
-        <li>Cookies or any code that identifies you or your device.</li></ul>
-      <p><strong>Administrators see only totals for the whole school.</strong> They do not receive any student's learning history, and they cannot see what one student did.</p>
+    <div class="card section"><h2>Usage statistics</h2>
+      <p>${on ? "General platform usage statistics help the English Department understand engagement and improve learning activities. They record, for example, which activities are opened and finished and how many answers are correct, but never your name or anything you write." : "General platform usage statistics can help the English Department understand engagement and improve learning activities. They are currently switched off, so nothing about how you use the website leaves this device."}</p>
       </div>
-    <div class="card section"><h2>Good to know</h2>
-      <ul class="feature-list">
-        <li>Like every website, the services that deliver the website and receive statistics (GitHub, Cloudflare, and Supabase) see technical details such as your internet address when your browser connects. NVS English Quest does not store internet addresses in its statistics. Because of this, the school does not describe the statistics as perfectly anonymous.</li>
-        <li>If statistics are blocked or not working, the website still works normally.</li>
-        <li>Questions? Ask your English teacher or the English Department.</li></ul></div>
-    <details class="card section tech-details"><summary>${icon("layers")} Technical details for school administration and IT</summary>
-      <ul class="feature-list">
-        <li><strong>Default:</strong> statistics are off until the school enables them in <code>analytics-config.js</code>. While off, the website makes no requests except for its own files.</li>
-        <li><strong>Learning events</strong> go to a Supabase Edge Function that accepts only four event types with an allowlist of fields, checks them again in the database, and limits the rate per connection. No IP address, user-agent string, cookie, or identifier is stored.</li>
-        <li><strong>Website traffic</strong> uses Cloudflare Web Analytics, which counts visits and page views without cookies.</li>
-        <li><strong>Reports</strong> are available only to named administrators who sign in. The database checks every request and returns totals only.</li>
-        <li><strong>Retention:</strong> anonymous events are deleted after 13 months once the scheduled clean-up is installed.</li>
-        <li>Full details are in the administrator documentation (Security and Privacy Report).</li></ul>
-    </details>`;
+    <div class="card section"><h2>Services we use</h2>
+      <p>The website is hosted by GitHub${st.learning ? ", and general usage statistics are stored with Supabase" : ""}.${st.traffic ? " Website visits are counted by Cloudflare Web Analytics." : ""} Like any website service, ${st.learning || st.traffic ? "these providers receive" : "GitHub receives"} basic technical information, such as your internet address, when your browser connects. NVS English Quest does not store internet addresses in its statistics and does not use cookies.</p>
+      <p>Questions? Ask your English teacher or the English Department.</p>
+      </div>`;
 }
 
 function viewAccessibility() {
   main().innerHTML = `
     <div class="page-head"><p class="eyebrow">${icon("info")} Accessibility</p><h1>Accessibility</h1>
-      <p>New Vision Schools wants every student to be able to use NVS English Quest. This page explains what the website offers and what we know still needs work.</p></div>
-    <div class="grid g2 section">
-      <div class="card"><h2>Features</h2>
-        <ul class="feature-list">
-          <li><strong>Keyboard:</strong> every page, activity, and button can be used with a keyboard. A <em>Skip to main content</em> link appears when you press Tab.</li>
-          <li><strong>Visible focus:</strong> the item you are on is shown with a clear outline.</li>
-          <li><strong>Readable text:</strong> text uses clear fonts and can be enlarged with the browser's zoom (Ctrl and +).</li>
-          <li><strong>Color contrast:</strong> the main text and button colors were checked against the WCAG AA contrast level.</li>
-          <li><strong>Not color alone:</strong> correct and incorrect answers are shown with words and icons as well as color.</li>
-          <li><strong>Phones and tablets:</strong> layouts adapt to small screens, and buttons are large enough to tap.</li>
-          <li><strong>Listening support:</strong> pause, replay, slower speed, a preview of useful words, and a full transcript after you answer. Reading passages can be read aloud.</li>
-          <li><strong>No time pressure:</strong> activities are untimed. The only timer (Skill Sprint) is optional.</li>
-          <li><strong>Structure:</strong> pages use headings, landmarks, labelled controls, and text alternatives for images, to help screen readers.</li>
-          <li><strong>Reduced motion:</strong> animations are switched off if your device asks for reduced motion.</li></ul></div>
-      <div class="card"><h2>Known limitations</h2>
-        <ul class="feature-list">
-          <li>The website has <strong>not been formally audited</strong> for full WCAG 2.2 conformance, so we do not claim full compliance.</li>
-          <li>Testing used automated checks and keyboard testing in Google Chrome. It has <strong>not yet been tested with screen readers</strong> (such as NVDA or VoiceOver) on students' own devices.</li>
-          <li>Listening activities play recordings made with natural-sounding computer-generated voices. Read-aloud elsewhere (for example, reading passages) uses the voices built into your device, so voice quality and availability vary.</li>
-          <li>The website is in English only, because the goal is to practice English. Instructions use short, simple sentences, with examples and models.</li>
-          <li>Writing in Guided Writing is not marked by the website.</li></ul>
-        <h2 style="margin-top:1.2rem">Tell us about a problem</h2>
-        <p>If something is hard to use, tell your English teacher or contact the school through its official communication channels. Please say which page and which device you were using.</p></div>
-    </div>`;
+      <p>NVS English Quest aims to provide an accessible and user-friendly learning experience across computers, tablets, and smartphones.</p></div>
+    <div class="card section"><h2>Good to know</h2>
+      <ul class="feature-list">
+        <li>The website has not yet been tested with screen readers (such as NVDA or VoiceOver).</li>
+        <li>Read-aloud for reading passages uses your device's built-in voice, so it may sound different on different devices.</li></ul>
+      <h2 style="margin-top:1.2rem">Need help?</h2>
+      <p>If you experience difficulty accessing an activity or using a feature, please inform your English teacher or the English Department. Please say which page and which device you were using.</p></div>`;
 }
 
 function viewHelp() {
