@@ -321,6 +321,7 @@ const LISTEN_AUDIO_DIR = "audio/listening/";
 /* Reading Academy narration: one recording per passage (audio/reading/<id>.mp3), read from the exact title and text.
    If the recording cannot load or play, the device's own voice reads the passage, as before. */
 const READ_AUDIO_DIR = "audio/reading/";
+const CHECK_AUDIO_DIR = "audio/check/";   /* Starting-Point Check narration, one file per level */
 let readAudio = null;
 /* Joke voices that some Apple devices list as English; never use them to read an activity. */
 const NOVELTY_VOICES = /^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox)\b/i;
@@ -851,11 +852,22 @@ function renderCheckSample(msg) {
   if (lb) lb.addEventListener("click", () => {
     if (lb.getAttribute("aria-pressed") === "true") { stopSpeech(); lb.setAttribute("aria-pressed", "false"); lb.innerHTML = `${icon("speaker")} Listen`; $("#ckAudio").textContent = "Stopped."; return; }
     stopSpeech(); const my = ++Player.token;
+    const speakWithDevice = () => {
     const u = new SpeechSynthesisUtterance(s.text.join(" ")); const v = englishVoices(); if (v.length) { try { u.voice = v[0]; } catch (e) {} }
     u.lang = u.voice ? u.voice.lang : "en-US"; u.rate = 0.9;
     u.onend = () => { if (my !== Player.token) return; lb.setAttribute("aria-pressed", "false"); lb.innerHTML = `${icon("speaker")} Listen`; $("#ckAudio").textContent = "Finished."; };
     u.onerror = e => { if (my !== Player.token || (e && (e.error === "interrupted" || e.error === "canceled"))) return; lb.setAttribute("aria-pressed", "false"); lb.innerHTML = `${icon("speaker")} Listen`; $("#ckAudio").textContent = "The audio could not play on this device. Please read the text."; };
     try { speechSynthesis.speak(u); lb.setAttribute("aria-pressed", "true"); lb.innerHTML = `${icon("stop")} Stop`; $("#ckAudio").textContent = "Reading aloud…"; } catch (e) { $("#ckAudio").textContent = "The audio could not play on this device. Please read the text."; }
+    };
+    /* Recorded narration for this level (audio/check/check-level-N.mp3); the device voice is used only if it cannot play. */
+    if (typeof Audio === "undefined") { speakWithDevice(); return; }
+    const au = new Audio(CHECK_AUDIO_DIR + "check-level-" + s.level + ".mp3"); readAudio = au;
+    const failed = () => { if (readAudio !== au || my !== Player.token) return; readAudio = null; try { au.pause(); } catch (e) {} speakWithDevice(); };
+    au.addEventListener("ended", () => { if (readAudio !== au) return; readAudio = null; lb.setAttribute("aria-pressed", "false"); lb.innerHTML = `${icon("speaker")} Listen`; $("#ckAudio").textContent = "Finished."; });
+    au.addEventListener("error", failed);
+    let pr; try { pr = au.play(); } catch (e) { failed(); return; }
+    if (pr && pr.catch) pr.catch(e => { if (!(e && e.name === "AbortError")) failed(); });
+    lb.setAttribute("aria-pressed", "true"); lb.innerHTML = `${icon("stop")} Stop`; $("#ckAudio").textContent = "Reading aloud…";
   });
 }
 function bindCheckHome() { document.querySelectorAll(".ck-home").forEach(l => l.addEventListener("click", e => { if (location.hash === "#check") { e.preventDefault(); viewCheck(); focusTop(); } })); }
