@@ -318,6 +318,10 @@ const Player = { act: null, chunks: [], i: 0, state: "idle", rate: 1, token: 0, 
 /* Recorded audio: one MP3 per listening activity (audio/listening/<id>.mp3), made from the exact script with
    natural voices matched to each speaker. If a file cannot load or play, the player falls back to browser speech. */
 const LISTEN_AUDIO_DIR = "audio/listening/";
+/* Reading Academy narration: one recording per passage (audio/reading/<id>.mp3), read from the exact title and text.
+   If the recording cannot load or play, the device's own voice reads the passage, as before. */
+const READ_AUDIO_DIR = "audio/reading/";
+let readAudio = null;
 /* Joke voices that some Apple devices list as English; never use them to read an activity. */
 const NOVELTY_VOICES = /^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox)\b/i;
 function englishVoices() {
@@ -325,7 +329,7 @@ function englishVoices() {
   const v = speechSynthesis.getVoices().filter(x => /^en[-_]/i.test(x.lang) && !NOVELTY_VOICES.test(x.name || ""));
   return v.sort((a, b) => (/en[-_](US|GB)/i.test(b.lang) ? 1 : 0) - (/en[-_](US|GB)/i.test(a.lang) ? 1 : 0));
 }
-function stopSpeech() { Player.token++; Player.state = "idle"; if (Player.audio) { try { Player.audio.pause(); } catch (e) {} } if (canSpeak) { try { speechSynthesis.cancel(); } catch (e) {} } }
+function stopSpeech() { Player.token++; Player.state = "idle"; if (Player.audio) { try { Player.audio.pause(); } catch (e) {} } if (readAudio) { try { readAudio.pause(); } catch (e) {} readAudio = null; } if (canSpeak) { try { speechSynthesis.cancel(); } catch (e) {} } }
 function playerHTML(act) {
   const sp = Object.entries(act.speakers).map(([n, r]) => `<strong>${esc(n)}</strong> (${esc(r)})`).join(", ");
   const transcript = act.script.map(l => `<p><strong>${esc(l.sp)}:</strong> ${esc(l.t)}</p>`).join("");
@@ -1223,11 +1227,22 @@ function viewActivity(id) {
 function toggleReadAloud() {
   const act = ACTIVITIES[session.aid];
   const set = on => { const b = $("#speakBtn"); if (!b) return; b.setAttribute("aria-pressed", String(on)); b.innerHTML = on ? `${icon("stop")} Stop` : `${icon("speaker")} Listen`; };
-  if (speechSynthesis.speaking) { stopSpeech(); set(false); return; }
-  const u = new SpeechSynthesisUtterance(act.title + ". " + act.text.join(" "));
-  const v = englishVoices()[0]; if (v) { try { u.voice = v; } catch (e) {} } u.lang = v ? v.lang : "en-US"; u.rate = 0.9;
-  u.onend = u.onerror = () => set(false);
-  speechSynthesis.speak(u); set(true);
+  if (readAudio || speechSynthesis.speaking) { stopSpeech(); set(false); return; }
+  const speakWithDevice = () => {
+    const u = new SpeechSynthesisUtterance(act.title + ". " + act.text.join(" "));
+    const v = englishVoices()[0]; if (v) { try { u.voice = v; } catch (e) {} } u.lang = v ? v.lang : "en-US"; u.rate = 0.9;
+    u.onend = u.onerror = () => set(false);
+    speechSynthesis.speak(u); set(true);
+  };
+  if (typeof Audio === "undefined") { speakWithDevice(); return; }
+  stopSpeech();
+  const au = new Audio(READ_AUDIO_DIR + act.id + ".mp3"); readAudio = au;
+  const failed = () => { if (readAudio !== au) return; readAudio = null; try { au.pause(); } catch (e) {} speakWithDevice(); };
+  au.addEventListener("ended", () => { if (readAudio === au) { readAudio = null; set(false); } });
+  au.addEventListener("error", failed);
+  let pr; try { pr = au.play(); } catch (e) { failed(); return; }
+  if (pr && pr.catch) pr.catch(e => { if (!(e && e.name === "AbortError")) failed(); });
+  set(true);
 }
 function setPassageHighlight(ev) {
   const el = $("#passageText"); if (!el) return;
